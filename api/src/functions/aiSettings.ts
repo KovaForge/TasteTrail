@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit } from '@azure/functions';
 import { sql, now } from '../db';
 import { withAuth, jsonResponse, errorResponse } from '../middleware/auth';
-import { encrypt, decrypt } from '../utils/encryption';
+import { encrypt, decrypt, toBuffer } from '../utils/encryption';
 import { createProvider } from '../services/aiProviders';
 
 // GET /api/ai-settings - Get user's AI settings (masked)
@@ -24,11 +24,10 @@ app.http('getAISettings', {
     const setting = settings[0];
     
     try {
-        let encryptedBuffer = setting.encrypted_api_key;
-        let nonceBuffer = setting.nonce;
-
-        if (!Buffer.isBuffer(encryptedBuffer)) encryptedBuffer = Buffer.from(encryptedBuffer);
-        if (!Buffer.isBuffer(nonceBuffer)) nonceBuffer = Buffer.from(nonceBuffer);
+        const encryptedBuffer = toBuffer(setting.encrypted_api_key);
+        const nonceBuffer = toBuffer(setting.nonce);
+        
+        console.log(`[getAISettings] Buffers: cipher=${encryptedBuffer.length}B, nonce=${nonceBuffer.length}B`);
 
         // Decrypt key to get last 4 characters for masking
         const apiKey = decrypt(encryptedBuffer, nonceBuffer);
@@ -160,19 +159,9 @@ app.http('deleteAISettings', {
       const setting = settings[0];
   
       try {
-        // Ensure we have Buffers (Neon might return Uint8Array or String)
-        let encryptedBuffer = setting.encrypted_api_key;
-        let nonceBuffer = setting.nonce;
-
-        if (!Buffer.isBuffer(encryptedBuffer)) {
-             // If it's a Uint8Array, Buffer.from(arr) works. 
-             // If it's a hex string (starts with \x), we might need to parse it?
-             // Usually neon returns Uint8Array for bytea.
-             encryptedBuffer = Buffer.from(encryptedBuffer);
-        }
-        if (!Buffer.isBuffer(nonceBuffer)) {
-             nonceBuffer = Buffer.from(nonceBuffer);
-        }
+        // Convert BYTEA data to proper Buffers (handles hex strings, Uint8Array, etc.)
+        const encryptedBuffer = toBuffer(setting.encrypted_api_key);
+        const nonceBuffer = toBuffer(setting.nonce);
 
         console.log(`[DEBUG] Decrypting Key: CipherLen=${encryptedBuffer.length}, NonceLen=${nonceBuffer.length}`);
 

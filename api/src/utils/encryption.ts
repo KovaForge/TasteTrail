@@ -5,6 +5,41 @@ const KEY_LENGTH = 32; // 256 bits
 const NONCE_LENGTH = 12; // 96 bits (recommended for GCM)
 
 /**
+ * Convert database BYTEA result to Buffer
+ * Handles: Buffer, Uint8Array, hex string (\x...), or base64
+ */
+export function toBuffer(data: unknown): Buffer {
+  const dataType = data === null ? 'null' 
+    : data === undefined ? 'undefined'
+    : Buffer.isBuffer(data) ? 'Buffer'
+    : data instanceof Uint8Array ? 'Uint8Array'
+    : typeof data === 'string' ? `string(${(data as string).substring(0, 10)}...)`
+    : typeof data;
+  console.log(`[toBuffer] Input type: ${dataType}`);
+  
+  if (Buffer.isBuffer(data)) {
+    return data;
+  }
+  
+  if (data instanceof Uint8Array) {
+    return Buffer.from(data);
+  }
+  
+  if (typeof data === 'string') {
+    // PostgreSQL hex format: \x followed by hex characters
+    if (data.startsWith('\\x')) {
+      return Buffer.from(data.slice(2), 'hex');
+    }
+    // Try base64 as fallback
+    return Buffer.from(data, 'base64');
+  }
+  
+  // Last resort: try to convert whatever it is
+  console.warn('[toBuffer] Unknown data type:', typeof data, data);
+  return Buffer.from(data as any);
+}
+
+/**
  * Get the master encryption key from environment variables
  */
 function getMasterKey(): Buffer {
