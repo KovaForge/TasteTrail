@@ -6,14 +6,18 @@ const NONCE_LENGTH = 12; // 96 bits (recommended for GCM)
 
 /**
  * Convert database BYTEA result to Buffer
- * Handles: Buffer, Uint8Array, hex string (\x...), or base64
+ * Handles: Buffer, Uint8Array, hex string (\x...), ArrayBuffer, or base64
  */
 export function toBuffer(data: unknown): Buffer {
+  // Extensive logging for debugging
   const dataType = data === null ? 'null' 
     : data === undefined ? 'undefined'
     : Buffer.isBuffer(data) ? 'Buffer'
     : data instanceof Uint8Array ? 'Uint8Array'
-    : typeof data === 'string' ? `string(${(data as string).substring(0, 10)}...)`
+    : ArrayBuffer.isView(data) ? 'ArrayBufferView'
+    : data instanceof ArrayBuffer ? 'ArrayBuffer'
+    : typeof data === 'string' ? `string(len=${(data as string).length}, start=${(data as string).substring(0, 20)})`
+    : typeof data === 'object' ? `object(keys=${Object.keys(data as object).slice(0, 5).join(',')})`
     : typeof data;
   console.log(`[toBuffer] Input type: ${dataType}`);
   
@@ -21,21 +25,44 @@ export function toBuffer(data: unknown): Buffer {
     return data;
   }
   
-  if (data instanceof Uint8Array) {
+  // Handle Uint8Array and other TypedArrays
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from((data as Uint8Array).buffer, (data as Uint8Array).byteOffset, (data as Uint8Array).byteLength);
+  }
+  
+  if (data instanceof ArrayBuffer) {
     return Buffer.from(data);
   }
   
   if (typeof data === 'string') {
     // PostgreSQL hex format: \x followed by hex characters
+    // Check for both \x and \\x (escaped version)
     if (data.startsWith('\\x')) {
-      return Buffer.from(data.slice(2), 'hex');
+      const hexPart = data.slice(2);
+      console.log(`[toBuffer] Parsing hex string (\\x), hex part length: ${hexPart.length}`);
+      return Buffer.from(hexPart, 'hex');
     }
     // Try base64 as fallback
+    console.log(`[toBuffer] Parsing as base64`);
     return Buffer.from(data, 'base64');
   }
   
+  // Handle object with numeric indices (sometimes returned by drivers)
+  if (typeof data === 'object' && data !== null) {
+    const obj = data as Record<string, number>;
+    const keys = Object.keys(obj);
+    if (keys.length > 0 && keys.every(k => !isNaN(Number(k)))) {
+      console.log(`[toBuffer] Converting numeric-keyed object to buffer`);
+      const arr = new Uint8Array(keys.length);
+      for (let i = 0; i < keys.length; i++) {
+        arr[i] = obj[String(i)];
+      }
+      return Buffer.from(arr);
+    }
+  }
+  
   // Last resort: try to convert whatever it is
-  console.warn('[toBuffer] Unknown data type:', typeof data, data);
+  console.warn('[toBuffer] Unknown data type, attempting raw conversion:', typeof data);
   return Buffer.from(data as any);
 }
 
