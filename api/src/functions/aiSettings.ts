@@ -23,18 +23,34 @@ app.http('getAISettings', {
 
     const setting = settings[0];
     
-    // Decrypt key to get last 4 characters for masking
-    const apiKey = decrypt(setting.encrypted_api_key, setting.nonce);
-    const maskedKey = apiKey.length > 4 
-      ? `${apiKey.substring(0, 3)}...${apiKey.substring(apiKey.length - 4)}`
-      : '***';
+    try {
+        let encryptedBuffer = setting.encrypted_api_key;
+        let nonceBuffer = setting.nonce;
 
-    return jsonResponse({
-      provider: setting.provider,
-      model: setting.model,
-      hasKey: true,
-      masked Key: maskedKey,
-    }, auth.correlationId);
+        if (!Buffer.isBuffer(encryptedBuffer)) encryptedBuffer = Buffer.from(encryptedBuffer);
+        if (!Buffer.isBuffer(nonceBuffer)) nonceBuffer = Buffer.from(nonceBuffer);
+
+        // Decrypt key to get last 4 characters for masking
+        const apiKey = decrypt(encryptedBuffer, nonceBuffer);
+        const maskedKey = apiKey.length > 4 
+          ? `${apiKey.substring(0, 3)}...${apiKey.substring(apiKey.length - 4)}`
+          : '***';
+
+        return jsonResponse({
+          provider: setting.provider,
+          model: setting.model,
+          hasKey: true,
+          maskedKey,
+        }, auth.correlationId);
+    } catch (error) {
+        console.error('[Encryption Error in getAISettings]', error);
+        return jsonResponse({
+            hasKey: false,
+            provider: setting.provider,
+            model: setting.model,
+            error: 'Failed to decrypt key'
+        }, auth.correlationId);
+    }
   }),
 });
 
@@ -126,39 +142,59 @@ app.http('deleteAISettings', {
   }),
 });
 
-// POST /api/ai-settings/test - Test connection to AI provider
-app.http('testAIConnection', {
-  methods: ['POST'],
-  route: 'ai-settings/test',
-  handler: withAuth(async (request, context, auth) => {
-    const settings = await sql`
-      SELECT provider, model, encrypted_api_key, nonce
-      FROM user_ai_settings
-      WHERE user_id = ${auth.user.id}
-    `;
+  // Test connection
+  app.http('testAIConnection', {
+    methods: ['POST'],
+    route: 'ai-settings/test',
+    handler: withAuth(async (request, context, auth) => {
+      const settings = await sql`
+        SELECT provider, model, encrypted_api_key, nonce
+        FROM user_ai_settings
+        WHERE user_id = ${auth.user.id}
+      `;
+  
+      if (settings.length === 0) {
+        return errorResponse(400, 'No AI settings configured', auth.correlationId);
+      }
+  
+      const setting = settings[0];
+  
+      try {
+        // Ensure we have Buffers (Neon might return Uint8Array or String)
+        let encryptedBuffer = setting.encrypted_api_key;
+        let nonceBuffer = setting.nonce;
 
-    if (settings.length === 0) {
-      return errorResponse(400, 'No AI settings configured', auth.correlationId);
-    }
+        if (!Buffer.isBuffer(encryptedBuffer)) {
+             // If it's a Uint8Array, Buffer.from(arr) works. 
+             // If it's a hex string (starts with \x), we might need to parse it?
+             // Usually neon returns Uint8Array for bytea.
+             encryptedBuffer = Buffer.from(encryptedBuffer);
+        }
+        if (!Buffer.isBuffer(nonceBuffer)) {
+             nonceBuffer = Buffer.from(nonceBuffer);
+        }
 
-    const setting = settings[0];
+        console.log(`[DEBUG] Decrypting Key: CipherLen=${encryptedBuffer.length}, NonceLen=${nonceBuffer.length}`);
 
-    try {
-      // Decrypt key and create provider
-      const apiKey = decrypt(setting.encrypted_api_key, setting.nonce);
-      const provider = createProvider(setting.provider, apiKey, setting.model);
-
-      // Test connection
-      const result = await provider.testConnection();
-
-      return jsonResponse(result, auth.correlationId);
-    } catch (error) {
-      return errorResponse(
-        500,
-        'Connection test failed',
-        auth.correlationId,
-        { message: error instanceof Error ? error.message : 'Unknown error' }
-      );
-    }
-  }),
-});
+        // Decrypt key and create provider
+        const apiKey = decrypt(encryptedBuffer, nonceBuffer);
+        const provider = createProvider(setting.provider, apiKey, setting.model);
+  
+        // Test connection
+        const result = await provider.testConnection();
+  
+        return jsonResponse(result, auth.correlationId);
+      } catch (error) {
+        console.error('[Encryption Error]', error);
+        return errorResponse(
+          500,
+          'Connection test failed',
+          auth.correlationId,
+          { 
+              message: error instanceof Error ? error.message : 'Unknown error',
+              stack: error instanceof Error ? error.stack : undefined
+          }
+        );
+      }
+    }),
+  });

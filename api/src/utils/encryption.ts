@@ -8,7 +8,7 @@ const NONCE_LENGTH = 12; // 96 bits (recommended for GCM)
  * Get the master encryption key from environment variables
  */
 function getMasterKey(): Buffer {
-  const masterKey = process.env.ENCRYPTION_MASTER_KEY;
+  const masterKey = process.env.ENCRYPTION_MASTER_KEY?.trim();
   
   if (!masterKey) {
     throw new Error('ENCRYPTION_MASTER_KEY environment variable is not set. Cannot encrypt/decrypt API keys.');
