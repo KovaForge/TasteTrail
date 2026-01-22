@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/staticwebapp.config.json",
   "platform": {
-    "apiRuntime": "node:18"
+    "apiRuntime": "node:20"
   },
   "routes": [
     {
@@ -11,7 +11,7 @@
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "*.auth/*", "/assets/*", "*.ico", "*.png", "*.svg"]
+    "exclude": ["/api/*", "/.auth/*", "/assets/*", "*.ico", "*.png", "*.svg"]
   },
 
   "responseOverrides": {
