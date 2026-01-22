@@ -13,13 +13,13 @@ CREATE TABLE workspaces (
 
 -- Workspace Members Table
 CREATE TABLE workspace_members (
-    user_id UUID NOT NULL,
+    user_id VARCHAR(255) NOT NULL,
     workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     role VARCHAR(20) NOT NULL CHECK (role IN ('Owner', 'Editor', 'Viewer')),
     email VARCHAR(255) NOT NULL,
     pending BOOLEAN NOT NULL DEFAULT false,
     added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    added_by_user_id UUID NOT NULL,
+    added_by_user_id VARCHAR(255) NOT NULL,
     PRIMARY KEY (user_id, workspace_id)
 );
 

@@ -127,17 +127,8 @@ export function withAuth(
       return errorResponse(401, 'Authentication required', correlationId);
     }
 
-    // Get workspace ID from query or body
-    let workspaceId = request.query.get('workspaceId');
-    
-    if (!workspaceId && request.method !== 'GET') {
-      try {
-        const body = await request.json() as Record<string, unknown>;
-        workspaceId = body.workspaceId as string | null;
-      } catch {
-        // Body parsing failed, continue
-      }
-    }
+    // Get workspace ID from header or query
+    let workspaceId = request.headers.get('x-workspace-id') || request.query.get('workspaceId');
 
     // Validate workspace membership if workspace is required or provided
     if (options.requireWorkspace && !workspaceId) {

@@ -33,14 +33,9 @@ async function apiFetch<T>(
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'x-correlation-id': correlationId,
+    ...(currentWorkspaceId && { 'x-workspace-id': currentWorkspaceId }),
     ...options.headers,
   };
-
-  // Add workspace ID to requests if available
-  if (currentWorkspaceId && !endpoint.includes('workspaceId=')) {
-    const separator = endpoint.includes('?') ? '&' : '?';
-    endpoint = `${endpoint}${separator}workspaceId=${currentWorkspaceId}`;
-  }
 
   try {
     const response = await fetch(endpoint, {
