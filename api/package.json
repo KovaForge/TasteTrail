@@ -1,0 +1,21 @@
+{
+  "name": "tastetrail-api",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/src/functions/*.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "start": "npm run build && func start",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "@neondatabase/serverless": "^0.9.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "typescript": "~5.6.2",
+    "vitest": "^2.1.6"
+  }
+}
