@@ -123,14 +123,12 @@ export function RestaurantDetailPage() {
       {/* Menu Items Section */}
       <div className="flex justify-between items-center mb-md">
         <h3>Menu Items ({menuItems.length})</h3>
-        {!restaurant.isShared && (
-          <button 
-            className="btn btn-secondary"
-            onClick={() => navigate(`/restaurant/${id}/menu-item/new`)}
-          >
-            Add Item
-          </button>
-        )}
+        <button 
+          className="btn btn-secondary"
+          onClick={() => navigate(`/restaurant/${id}/menu-item/new`)}
+        >
+          Add Item
+        </button>
       </div>
 
       {menuItems.length === 0 ? (

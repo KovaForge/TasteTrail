@@ -9,13 +9,27 @@ app.http('getMenuItems', {
   handler: withAuth(async (request, context, auth) => {
     const restaurantId = request.params.restaurantId;
 
+    // Join with user_menu_item_state to get personal progress
     const items = await sql`
       SELECT 
-        id, restaurant_id, workspace_id, name, category, price, description,
-        tried, last_tried_date, rating, notes, tags, created_at
-      FROM menu_items
-      WHERE restaurant_id = ${restaurantId}
-      ORDER BY category NULLS LAST, name ASC
+        mi.id, 
+        mi.restaurant_id, 
+        mi.workspace_id, 
+        mi.name, 
+        mi.category, 
+        mi.price, 
+        mi.description,
+        mi.created_at,
+        -- Personal state (coalesce to defaults)
+        COALESCE(us.tried, false) as tried,
+        us.last_tried_date,
+        us.rating,
+        us.notes,
+        COALESCE(us.tags, '[]'::jsonb) as tags
+      FROM menu_items mi
+      LEFT JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
+      WHERE mi.restaurant_id = ${restaurantId}
+      ORDER BY mi.category NULLS LAST, mi.name ASC
     `;
     
     return jsonResponse({ items }, auth.correlationId);
@@ -40,6 +54,16 @@ app.http('createMenuItem', {
 
     const workspaceId = restaurants[0]?.workspace_id;
 
+    // Verify membership in the restaurant's workspace (Anyone can add items)
+    const membership = await sql`
+      SELECT role FROM workspace_members 
+      WHERE user_id = ${auth.user.id} AND workspace_id = ${workspaceId}
+    `;
+
+    if (membership.length === 0) {
+      return errorResponse(403, 'You do not have permission to add items to this restaurant', auth.correlationId);
+    }
+
     const body = await request.json() as {
       name: string;
       category?: string;
@@ -58,26 +82,40 @@ app.http('createMenuItem', {
     const id = generateId();
     const createdAt = now();
 
-    await sql`
-      INSERT INTO menu_items (
-        id, restaurant_id, workspace_id, name, category, price, description,
-        tried, last_tried_date, rating, notes, tags, created_at
-      ) VALUES (
-        ${id},
-        ${restaurantId},
-        ${workspaceId},
-        ${body.name.trim()},
-        ${body.category?.trim() || null},
-        ${body.price || null},
-        ${body.description?.trim() || null},
-        ${body.tried || false},
-        ${body.tried ? createdAt : null},
-        ${body.rating || null},
-        ${body.notes?.trim() || null},
-        ${JSON.stringify(body.tags || [])},
-        ${createdAt}
-      )
-    `;
+    await sql.transaction(async (tx) => {
+      // 1. Insert Definition
+      await tx`
+        INSERT INTO menu_items (
+          id, restaurant_id, workspace_id, name, category, price, description, created_at
+        ) VALUES (
+          ${id},
+          ${restaurantId},
+          ${workspaceId},
+          ${body.name.trim()},
+          ${body.category?.trim() || null},
+          ${body.price || null},
+          ${body.description?.trim() || null},
+          ${createdAt}
+        )
+      `;
+
+      // 2. Insert Personal State (if any)
+      if (body.tried || body.rating || body.notes || (body.tags && body.tags.length > 0)) {
+        await tx`
+          INSERT INTO user_menu_item_state (
+            user_id, menu_item_id, tried, last_tried_date, rating, notes, tags
+          ) VALUES (
+            ${auth.user.id},
+            ${id},
+            ${body.tried || false},
+            ${body.tried ? createdAt : null},
+            ${body.rating || null},
+            ${body.notes?.trim() || null},
+            ${JSON.stringify(body.tags || [])}
+          )
+        `;
+      }
+    });
 
     return jsonResponse({
       id,
@@ -106,10 +144,15 @@ app.http('getMenuItem', {
 
     const items = await sql`
       SELECT 
-        id, restaurant_id, workspace_id, name, category, price, description,
-        tried, last_tried_date, rating, notes, tags, created_at
-      FROM menu_items
-      WHERE id = ${id}
+        mi.id, mi.restaurant_id, mi.workspace_id, mi.name, mi.category, mi.price, mi.description, mi.created_at,
+        COALESCE(us.tried, false) as tried,
+        us.last_tried_date,
+        us.rating,
+        us.notes,
+        COALESCE(us.tags, '[]'::jsonb) as tags
+      FROM menu_items mi
+      LEFT JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
+      WHERE mi.id = ${id}
     `;
 
     if (items.length === 0) {
@@ -148,77 +191,124 @@ app.http('updateMenuItem', {
     }
 
     const itemWorkspaceId = existing[0].workspace_id;
-    const isOwner = itemWorkspaceId === auth.workspaceId;
-
-    // Build update
-    const updates: string[] = [];
-    const values: unknown[] = [];
-
-    // Definition updates (Only allowed if user owns the workspace of the item)
-    if (isOwner) {
-      if (body.name !== undefined) { updates.push('name'); values.push(body.name.trim()); }
-      if (body.category !== undefined) { updates.push('category'); values.push(body.category.trim()); }
-      if (body.price !== undefined) { updates.push('price'); values.push(body.price); }
-      if (body.description !== undefined) { updates.push('description'); values.push(body.description.trim()); }
+    
+    // Check membership
+    const membership = await sql`
+      SELECT role FROM workspace_members 
+      WHERE user_id = ${auth.user.id} AND workspace_id = ${itemWorkspaceId}
+    `;
+    
+    if (membership.length === 0) {
+       return errorResponse(403, 'No access to this workspace', auth.correlationId);
     }
 
-    // Personal/State updates (Allowed for everyone)
-    // Note: detailed permissions logic for shared workspaces implies we should store state separately
-    // but per current simple schema, we are storing everything on the item row.
-    // The requirement says: "Tried state. notes. rating are editable and stored per user."
-    // "All personal changes affect only the current user."
-    // CURRENT DATABASE SCHEMA DOES NOT SUPPORT PER-USER STATE YET (it's single row).
-    // However, for the MVP scope defined in this step, we will allow updating these fields row-level
-    // and assume the "IsShared" logic is primarily for UI protection until we split the schema.
-    // OR, we stick to the row level logic for now as requested.
-    
-    // Actually, looking at the request: "Menu item endpoints must Join UserMenuItemState for the current user."
-    // This implies we need a schema change. But the user didn't ask for a migration in THIS step explicitly
-    // except referencing "Data Resolution Logic".
-    
-    // Wait, if I change it to per-user state, I need a new table.
-    // "Menu item endpoints must Join UserMenuItemState for the current user."
-    // Yes, this is a schema change requirement.
-    
-    // Let's implement the permission check FIRST for this file.
-    if (body.tried !== undefined) { updates.push('tried'); values.push(body.tried); }
-    if (body.lastTriedDate !== undefined) { updates.push('last_visited_date'); values.push(body.lastTriedDate); } // Note: column name mismatch in schema? previous was last_tried_date in SELECT, let's allow it. 
-    // Wait, looking at line 149 of original: last_tried_date = body.lastTriedDate
-    if (body.lastTriedDate !== undefined) { updates.push('last_tried_date'); values.push(body.lastTriedDate); }
-    if (body.rating !== undefined) { updates.push('rating'); values.push(body.rating); }
-    if (body.notes !== undefined) { updates.push('notes'); values.push(body.notes.trim()); }
-    if (body.tags !== undefined) { updates.push('tags'); values.push(JSON.stringify(body.tags)); }
+    const role = membership[0].role;
+    const canEditDefinition = role === 'Owner' || role === 'Editor';
 
-    if (updates.length === 0) {
+    // Definition updates (Only allowed if Owner/Editor)
+    const defUpdates: string[] = [];
+    const defValues: unknown[] = [];
+
+    if (canEditDefinition) {
+      if (body.name !== undefined) { defUpdates.push('name'); defValues.push(body.name.trim()); }
+      if (body.category !== undefined) { defUpdates.push('category'); defValues.push(body.category.trim()); }
+      if (body.price !== undefined) { defUpdates.push('price'); defValues.push(body.price); }
+      if (body.description !== undefined) { defUpdates.push('description'); defValues.push(body.description.trim()); }
+    }
+
+    // Personal State updates (Allowed for everyone)
+    const stateUpdates: string[] = [];
+    const stateValues: unknown[] = [];
+    const stateColumns = ['tried', 'last_tried_date', 'rating', 'notes', 'tags'];
+
+    if (body.tried !== undefined) { stateUpdates.push('tried'); stateValues.push(body.tried); }
+    if (body.lastTriedDate !== undefined) { stateUpdates.push('last_tried_date'); stateValues.push(body.lastTriedDate); }
+    if (body.rating !== undefined) { stateUpdates.push('rating'); stateValues.push(body.rating); }
+    if (body.notes !== undefined) { stateUpdates.push('notes'); stateValues.push(body.notes.trim()); }
+    if (body.tags !== undefined) { stateUpdates.push('tags'); stateValues.push(JSON.stringify(body.tags)); }
+
+    if (defUpdates.length === 0 && stateUpdates.length === 0) {
       return errorResponse(400, 'No allowed updates provided', auth.correlationId);
     }
 
-    // Execute update using raw SQL
-    const setClause = updates.map((u, i) => `${u} = $${i + 2}`).join(', ');
-    
-    // Construct the dynamic query safely
-    // sql`...` requires a template literal, not a string. 
-    // We'll use the Transaction + helper approach or individual column updates
-    // Since neon driver is strict, let's use the object syntax if possible or verbose logic
-    
-    // Helper to constructing dynamic set
-    // We cannot easily inject dynamic columns with the `sql` tag helper incorrectly.
-    // Let's use the verbose approach for safety given the driver constraints.
-    
-    await sql.transaction([
-      sql`
-        UPDATE menu_items 
-        SET ${sql(updates.map((u, i) => [u, values[i]]))}
-        WHERE id = ${id}
-      `
-    ]);
+    await sql.transaction(async (tx) => {
+      // 1. Update Definition
+      if (defUpdates.length > 0) {
+         await tx`
+          UPDATE menu_items 
+          SET ${sql(defUpdates.map((u, i) => [u, defValues[i]]))}
+          WHERE id = ${id}
+        `;
+      }
+
+      // 2. Upsert Personal State
+      if (stateUpdates.length > 0) {
+        // We need to check if row exists first or use upsert. 
+        // Postgres ON CONFLICT requires a constraint unique index.
+        // Primary key (user_id, menu_item_id) exists.
+        
+        // Construct SET clause for update part of upsert
+        // Excluded table usage
+        
+        // Dynamic construction for INSERT ... ON CONFLICT
+        // It's easier to just do explicit INSERT ... ON CONFLICT DO UPDATE
+        // But we need to handle partial updates. 
+        // If row doesn't exist, we need to provide all columns? No, separate table allows defaults.
+        // But we need to preserve existing values if we don't send them?
+        // Wait, if I send ONLY { rating: 5 }, and row doesn't exist, other fields (tried) will be default (false).
+        // This is correct behavior for a new interaction.
+        // BUT if row EXISTS, we should update only rating.
+        
+        // The safest way with the `neon` driver helper and dynamic columns is messy.
+        // Let's rely on standard SQL upsert with specific logic.
+        
+        // Actually, simplest is to check existence.
+        const existingState = await tx`SELECT 1 FROM user_menu_item_state WHERE user_id=${auth.user.id} AND menu_item_id=${id}`;
+        
+        if (existingState.length > 0) {
+            // Update
+             await tx`
+                UPDATE user_menu_item_state
+                SET ${sql(stateUpdates.map((u, i) => [u, stateValues[i]]))}
+                WHERE user_id=${auth.user.id} AND menu_item_id=${id}
+             `;
+        } else {
+            // Insert with defaults for missing fields
+            // We need to map incoming updates to a full insert object or use defaults.
+            // Map arrays to named checks
+            const insertObj: any = {
+                user_id: auth.user.id,
+                menu_item_id: id,
+                updated_at: now()
+            };
+            
+            if (body.tried !== undefined) insertObj.tried = body.tried;
+            if (body.lastTriedDate !== undefined) insertObj.last_tried_date = body.lastTriedDate;
+            if (body.rating !== undefined) insertObj.rating = body.rating;
+            if (body.notes !== undefined) insertObj.notes = body.notes;
+            if (body.tags !== undefined) insertObj.tags = JSON.stringify(body.tags);
+
+            // Using helper to verify columns
+            const keys = Object.keys(insertObj);
+            const vals = Object.values(insertObj);
+            
+            await tx`INSERT INTO user_menu_item_state (${sql(keys)}) VALUES (${sql(vals)})`;
+        }
+      }
+    });
 
     // Fetch updated
     const items = await sql`
       SELECT 
-        id, restaurant_id, workspace_id, name, category, price, description,
-        tried, last_tried_date, rating, notes, tags, created_at
-      FROM menu_items WHERE id = ${id}
+        mi.id, mi.restaurant_id, mi.workspace_id, mi.name, mi.category, mi.price, mi.description, mi.created_at,
+        COALESCE(us.tried, false) as tried,
+        us.last_tried_date,
+        us.rating,
+        us.notes,
+        COALESCE(us.tags, '[]'::jsonb) as tags
+      FROM menu_items mi
+      LEFT JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
+      WHERE mi.id = ${id}
     `;
 
     return jsonResponse(items[0], auth.correlationId);
@@ -231,6 +321,19 @@ app.http('deleteMenuItem', {
   route: 'menu-items/{id}',
   handler: withAuth(async (request, context, auth) => {
     const id = request.params.id;
+
+    // Check ownership
+    const existing = await sql`SELECT workspace_id FROM menu_items WHERE id = ${id}`;
+    if (existing.length === 0) return jsonResponse({ success: true }, auth.correlationId);
+    
+    const membership = await sql`
+       SELECT role FROM workspace_members 
+       WHERE user_id = ${auth.user.id} AND workspace_id = ${existing[0].workspace_id}
+    `;
+    
+    if (membership.length === 0 || (membership[0].role !== 'Owner' && membership[0].role !== 'Editor')) {
+        return errorResponse(403, 'Only Owners and Editors can delete menu items', auth.correlationId);
+    }
 
     await sql`DELETE FROM menu_items WHERE id = ${id}`;
 
