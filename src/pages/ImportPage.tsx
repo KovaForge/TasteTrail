@@ -32,13 +32,51 @@ export function ImportPage() {
 
   const handleProcess = async () => {
     if (!sourceValue.trim()) return;
+
+    // Check if AI key is configured (unless it's just raw text, which we might support lightly or consistency blocks)
+    // Per requirements: "If no key is configured. URL and screenshot imports are blocked"
+    // "Text only imports may optionally still work without AI but default to blocked for consistency"
+    // So we check for all.
+    const settingsResponse = await api.getAISettings();
+    if (!settingsResponse.data?.hasKey) {
+      addEntry({
+        type: 'error',
+        message: 'AI provider not configured. Please add your API key in Settings.',
+        timestamp: new Date().toISOString(),
+      });
+      alert('You need to configure an AI Provider (OpenAI or Gemini) in Settings to import menus.');
+      return;
+    }
     
     setIsProcessing(true);
-    const response = await api.createImport(sourceType, sourceValue);
+    
+    // For images, we need to ensure we send just the base64 data if it has a prefix
+    let processedValue = sourceValue;
+    if (sourceType === 'image' && sourceValue.includes('base64,')) {
+      processedValue = sourceValue.split('base64,')[1];
+    }
+
+    const response = await api.parseImport({
+      sourceType,
+      sourceValue: processedValue,
+    });
     
     if (response.data) {
-      setImportId(response.data.import.id);
-      setDraft(response.data.draft);
+      // response.data now matches { restaurant, items, warnings, meta }
+      // We need to map it to ImportDraft shape
+      setImportId('temp-' + Date.now()); // Parse doesn't create a persistent record yet until commit (or we might want to change that behavior if backend persists it)
+      // Actually backend createImport persisted it. parseImport does not seem to persist a draft record in DB in the new implementation?
+      // Wait, the new parseImport implementation DOES NOT persist to menu_imports table. It just returns JSON.
+      // So we use a temp ID.
+      
+      setDraft({
+        restaurantName: response.data.restaurant.name,
+        cuisine: response.data.restaurant.cuisine,
+        items: response.data.items.map((item: any) => ({
+          ...item,
+          selected: true, // Default to selected
+        })),
+      });
       setStep('review');
     }
     

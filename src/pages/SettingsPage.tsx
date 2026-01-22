@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Layout } from '../components';
 import { useAuth, useDebug } from '../context';
+import { api } from '../services';
 import type { WorkspaceRole } from '../types';
 
 export function SettingsPage() {
@@ -11,6 +12,88 @@ export function SettingsPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>('Editor');
   const [isInviting, setIsInviting] = useState(false);
+
+  // AI Settings state
+  const [aiProvider, setAiProvider] = useState<'openai' | 'gemini'>('openai');
+  const [aiKey, setAiKey] = useState('');
+  const [aiModel, setAiModel] = useState('gpt-4o');
+  const [hasKey, setHasKey] = useState(false);
+  const [maskedKey, setMaskedKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Load AI settings on mount
+  useEffect(() => {
+    loadAISettings();
+  }, []);
+
+  async function loadAISettings() {
+    const response = await api.getAISettings();
+    if (response.data) {
+      setHasKey(response.data.hasKey);
+      if (response.data.provider) {
+        setAiProvider(response.data.provider as 'openai' | 'gemini');
+      }
+      if (response.data.model) {
+        setAiModel(response.data.model);
+      }
+      if (response.data.maskedKey) {
+        setMaskedKey(response.data.maskedKey);
+      }
+    }
+  }
+
+  async function handleSaveAISettings() {
+    if (!aiKey.trim()) return;
+    
+    setIsSaving(true);
+    setTestResult(null);
+    
+    try {
+      const response = await api.saveAISettings(aiProvider, aiKey, aiModel);
+      if (response.data) {
+        setHasKey(true);
+        setMaskedKey(response.data.maskedKey);
+        setAiKey(''); // Clear input after save
+        setTestResult({ success: true, message: 'API key saved successfully' });
+      }
+    } catch (error) {
+      setTestResult({ success: false, message: 'Failed to save API key' });
+    }
+    
+    setIsSaving(false);
+  }
+
+  async function handleTestConnection() {
+    setTestResult(null);
+    
+    try {
+      const response = await api.testAIConnection();
+      if (response.data) {
+        setTestResult({ 
+          success: response.data.success, 
+          message: response.data.message 
+        });
+      }
+    } catch (error) {
+      setTestResult({ success: false, message: 'Connection test failed' });
+    }
+  }
+
+  async function handleClearKey() {
+    if (!confirm('Are you sure you want to remove your API key?')) return;
+    
+    try {
+      await api.deleteAISettings();
+      setHasKey(false);
+      setMaskedKey('');
+      setAiKey('');
+      setTestResult({ success: true, message: 'API key removed' });
+    } catch (error) {
+      setTestResult({ success: false, message: 'Failed to remove API key' });
+    }
+  }
 
   const handleInvite = async () => {
     if (!inviteEmail.trim() || !currentWorkspace) return;
@@ -204,6 +287,132 @@ export function SettingsPage() {
         </div>
       </div>
 
+      {/* AI Provider Settings */}
+      <div className="card mb-md">
+        <h4 className="mb-md">AI Provider</h4>
+        <p className="mb-md" style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+          Configure your own API key for AI-powered menu imports (OpenAI or Gemini).
+        </p>
+        
+        {/* Provider selector */}
+        <div className="form-group">
+          <label className="form-label">Provider</label>
+          <select 
+            className="form-input form-select" 
+            value={aiProvider} 
+            onChange={(e) => {
+              const newProvider = e.target.value as 'openai' | 'gemini';
+              setAiProvider(newProvider);
+              // Set default models
+              if (newProvider === 'openai') setAiModel('gpt-4o');
+              else setAiModel('gemini-2.0-flash-exp');
+            }}
+          >
+            <option value="openai">OpenAI</option>
+            <option value="gemini">Gemini</option>
+          </select>
+        </div>
+        
+        {/* API Key input */}
+        <div className="form-group">
+          <label className="form-label">API Key</label>
+          <div className="flex gap-sm">
+            <input
+              type={showApiKey ? 'text' : 'password'}
+              className="form-input"
+              placeholder={hasKey ? `Stored: ${maskedKey}` : 'Enter API key'}
+              value={aiKey}
+              onChange={(e) => setAiKey(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button 
+              className="btn btn-ghost btn-icon" 
+              onClick={() => setShowApiKey(!showApiKey)}
+              title={showApiKey ? "Hide key" : "Show key"}
+            >
+              <svg 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                style={{ width: 20, height: 20 }}
+              >
+                {showApiKey ? (
+                  <>
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M1 1l22 22" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                  </>
+                ) : (
+                  <>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </>
+                )}
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        {/* Model selector */}
+        <div className="form-group">
+          <label className="form-label">Model</label>
+          <select 
+            className="form-input form-select" 
+            value={aiModel} 
+            onChange={(e) => setAiModel(e.target.value)}
+          >
+            {aiProvider === 'openai' ? (
+              <>
+                <option value="gpt-4o">GPT-4o (Recommended)</option>
+                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+              </>
+            ) : (
+              <>
+                <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash (Recommended)</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+              </>
+            )}
+          </select>
+        </div>
+
+        {/* Status Message */}
+        {testResult && (
+          <div className={`mb-md p-sm rounded ${testResult.success ? 'bg-success-subtle text-success' : 'bg-error-subtle text-error'}`} style={{ fontSize: 'var(--font-size-sm)' }}>
+            {testResult.message}
+          </div>
+        )}
+        
+        {/* Actions */}
+        <div className="flex gap-sm flex-wrap">
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleTestConnection}
+            disabled={!hasKey && !aiKey}
+          >
+            Test Connection
+          </button>
+          <button 
+            className="btn btn-primary" 
+            onClick={handleSaveAISettings}
+            disabled={!aiKey.trim() || isSaving}
+          >
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+          {hasKey && (
+            <button 
+              className="btn btn-ghost text-error" 
+              onClick={handleClearKey}
+              style={{ marginLeft: 'auto' }}
+            >
+              Clear Key
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* App Info */}
       <div className="card" style={{ textAlign: 'center', color: 'var(--color-text-tertiary)' }}>

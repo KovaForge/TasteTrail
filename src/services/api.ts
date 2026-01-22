@@ -202,10 +202,15 @@ export const api = {
     apiFetch<import('../types').StatsResponse>(`/api/stats/cuisines?scope=${scope}&countBy=${countBy}`),
 
   // Imports
-  createImport: (sourceType: import('../types').ImportSourceType, sourceValue: string) =>
-    apiFetch<{ import: import('../types').MenuImport; draft: import('../types').ImportDraft }>('/api/imports', {
+  parseImport: (data: { sourceType: string; sourceValue: string; restaurantHint?: string }) =>
+    apiFetch<{ 
+      restaurant: any; 
+      items: any[]; 
+      warnings: string[];
+      meta: { provider: string; model: string; sourceType: string; itemCount: number; durationMs: number };
+    }>('/api/imports/parse', {
       method: 'POST',
-      body: JSON.stringify({ sourceType, sourceValue }),
+      body: JSON.stringify(data),
     }),
   commitImport: (importId: string, draft: import('../types').ImportDraft) =>
     apiFetch<{ restaurant: import('../types').Restaurant; items: import('../types').MenuItem[] }>(
@@ -215,4 +220,22 @@ export const api = {
         body: JSON.stringify(draft),
       }
     ),
+
+  // AI Settings
+  getAISettings: () => 
+    apiFetch<{ provider?: string; model?: string; hasKey: boolean; maskedKey?: string }>('/api/ai-settings'),
+  
+  saveAISettings: (provider: string, apiKey: string, model: string) =>
+    apiFetch<{ provider: string; model: string; maskedKey: string }>('/api/ai-settings', {
+      method: 'POST',
+      body: JSON.stringify({ provider, apiKey, model }),
+    }),
+  
+  deleteAISettings: () =>
+    apiFetch<{ success: boolean }>('/api/ai-settings', { method: 'DELETE' }),
+  
+  testAIConnection: () =>
+    apiFetch<{ success: boolean; message: string; model: string }>('/api/ai-settings/test', { 
+      method: 'POST' 
+    }),
 };
