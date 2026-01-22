@@ -28,7 +28,7 @@ app.http('getRestaurants', {
         r.last_visited_date, 
         r.created_at,
         w.name as owner_name,
-        CASE WHEN r.workspace_id = ${auth.workspaceId} THEN false ELSE true END as is_shared,
+        CASE WHEN ${auth.workspaceId}::uuid IS NULL OR r.workspace_id = ${auth.workspaceId}::uuid THEN false ELSE true END as is_shared,
         COUNT(mi.id) as menu_item_count,
         COUNT(CASE WHEN mi.tried = true THEN 1 END) as tried_count
       FROM restaurants r

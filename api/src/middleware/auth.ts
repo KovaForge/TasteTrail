@@ -130,6 +130,11 @@ export function withAuth(
     // Get workspace ID from header or query
     let workspaceId = request.headers.get('x-workspace-id') || request.query.get('workspaceId');
 
+    // Handle special 'global' workspace ID (means "all my workspaces")
+    if (workspaceId === 'global') {
+      workspaceId = null;
+    }
+
     // Validate workspace membership if workspace is required or provided
     if (options.requireWorkspace && !workspaceId) {
       return errorResponse(400, 'Workspace ID is required', correlationId);
