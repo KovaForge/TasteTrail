@@ -7,19 +7,11 @@
     {
       "route": "/api/*",
       "allowedRoles": ["authenticated"]
-    },
-    {
-      "route": "/.auth/login/aad",
-      "rewrite": "/.auth/login/aad"
-    },
-    {
-      "route": "/.auth/logout",
-      "rewrite": "/.auth/logout"
     }
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "/.auth/*", "/assets/*", "/*.ico", "/*.png", "/*.svg"]
+    "exclude": ["/api/*", "/.auth/*", "/assets/*", "*.ico", "*.png", "*.svg"]
   },
 
   "responseOverrides": {
