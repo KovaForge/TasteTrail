@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Layout, DebugConsole } from '../components';
+import { Layout } from '../components';
 import { useAuth, useDebug } from '../context';
 import type { WorkspaceRole } from '../types';
 
@@ -7,7 +7,6 @@ export function SettingsPage() {
   const { user, currentWorkspace, workspaces, members, userRole, logout, refreshMembers } = useAuth();
   const { isDebugEnabled, toggleDebug } = useDebug();
   
-  const [showDebug, setShowDebug] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<WorkspaceRole>('Editor');
@@ -203,21 +202,8 @@ export function SettingsPage() {
             </svg>
           </button>
         </div>
-        <button 
-          className="btn btn-secondary" 
-          style={{ width: '100%' }}
-          onClick={() => setShowDebug(!showDebug)}
-        >
-          {showDebug ? 'Hide Debug Console' : 'Show Debug Console'}
-        </button>
       </div>
 
-      {/* Debug Console */}
-      {showDebug && (
-        <div className="mb-md">
-          <DebugConsole />
-        </div>
-      )}
 
       {/* App Info */}
       <div className="card" style={{ textAlign: 'center', color: 'var(--color-text-tertiary)' }}>

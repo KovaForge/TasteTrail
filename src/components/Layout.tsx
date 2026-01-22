@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { BottomNav } from './BottomNav';
+import { DebugConsole } from './DebugConsole';
 
 interface LayoutProps {
   children: ReactNode;
@@ -41,8 +42,12 @@ export function Layout({ children, title, showBack, onBack, actions }: LayoutPro
       )}
       <main className="main-content">
         {children}
+        <div className="mt-2xl">
+          <DebugConsole />
+        </div>
       </main>
       <BottomNav />
     </div>
   );
 }
+

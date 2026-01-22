@@ -1,20 +1,12 @@
 import { useDebug } from '../context';
 
 export function DebugConsole() {
-  const { entries, clearEntries, copyDebugReport } = useDebug();
+  const { entries, isDebugEnabled, clearEntries, copyDebugReport } = useDebug();
 
-  if (entries.length === 0) {
-    return (
-      <div className="debug-console">
-        <div className="debug-header">
-          <span>Debug Console</span>
-        </div>
-        <div className="empty-state" style={{ padding: 'var(--space-lg)' }}>
-          <p className="empty-state-description">No debug entries yet</p>
-        </div>
-      </div>
-    );
+  if (entries.length === 0 && !isDebugEnabled) {
+    return null;
   }
+
 
   return (
     <div className="debug-console">
@@ -29,7 +21,13 @@ export function DebugConsole() {
           </button>
         </div>
       </div>
-      <div className="debug-entries">
+      {entries.length === 0 ? (
+        <div className="empty-state" style={{ padding: 'var(--space-lg)' }}>
+          <p className="empty-state-description">No debug entries yet</p>
+        </div>
+      ) : (
+        <div className="debug-entries">
+
         {entries.map((entry) => (
           <div key={entry.id} className={`debug-entry ${entry.type}`}>
             <div className="debug-timestamp">{entry.timestamp}</div>
@@ -52,6 +50,8 @@ export function DebugConsole() {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
+
