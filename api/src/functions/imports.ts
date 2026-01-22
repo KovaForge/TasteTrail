@@ -1,12 +1,17 @@
 import { app, HttpRequest, HttpResponseInit } from '@azure/functions';
 import { sql, generateId, now } from '../db';
 import { withAuth, jsonResponse, errorResponse, AuthenticatedRequest } from '../middleware/auth';
+import { decrypt } from '../utils/encryption';
+import { createProvider } from '../services/aiProviders';
+import { extractFromUrl, extractFromImage, extractFromText } from '../services/contentExtractors';
 
-// POST /api/imports - Create an import draft
-app.http('createImport', {
+// POST /api/imports/parse - Parse menu from source with AI
+app.http('parseImport', {
   methods: ['POST'],
-  route: 'imports',
+  route: 'imports/parse',
   handler: withAuth(async (request, context, auth) => {
+    const startTime = Date.now();
+    
     if (!auth.workspaceId) {
       return errorResponse(400, 'Workspace ID is required', auth.correlationId);
     }
@@ -14,36 +19,85 @@ app.http('createImport', {
     const body = await request.json() as {
       sourceType: 'text' | 'url' | 'image';
       sourceValue: string;
+      restaurantHint?: string;
     };
 
     if (!body.sourceType || !body.sourceValue) {
       return errorResponse(400, 'Source type and value are required', auth.correlationId);
     }
 
-    const id = generateId();
-    const importedAt = now();
+    try {
+      // 1. Fetch user's AI settings
+      const settings = await sql`
+        SELECT provider, model, encrypted_api_key, nonce
+        FROM user_ai_settings
+        WHERE user_id = ${auth.user.id}
+      `;
 
-    // Save import record
-    await sql`
-      INSERT INTO menu_imports (id, workspace_id, source_type, source_value, imported_at, status)
-      VALUES (${id}, ${auth.workspaceId}, ${body.sourceType}, ${body.sourceValue}, ${importedAt}, 'draft')
-    `;
+      if (settings.length === 0) {
+        return errorResponse(
+          400,
+          'AI provider not configured. Please add your API key in Settings.',
+          auth.correlationId
+        );
+      }
 
-    // Mock AI parsing - in production this would call Azure OpenAI
-    // For now, let's do simple text parsing
-    const draft = parseMenuText(body.sourceValue, body.sourceType);
+      const setting = settings[0];
 
-    return jsonResponse({
-      import: {
-        id,
-        workspaceId: auth.workspaceId,
-        sourceType: body.sourceType,
-        sourceValue: body.sourceValue.substring(0, 100) + '...',
-        importedAt,
-        status: 'draft',
-      },
-      draft,
-    }, auth.correlationId, 201);
+      // 2. Extract content based on source type
+      let content: string;
+      
+      context.log(`Extracting content from ${body.sourceType}...`);
+      
+      if (body.sourceType === 'url') {
+        content = await extractFromUrl(body.sourceValue);
+      } else if (body.sourceType === 'image') {
+        // Expect base64-encoded image
+        const imageBuffer = Buffer.from(body.sourceValue, 'base64');
+        content = await extractFromImage(imageBuffer);
+      } else {
+        content = extractFromText(body.sourceValue);
+      }
+
+      context.log(`Extracted ${content.length} characters`);
+
+      // 3. Decrypt API key and parse with AI
+      const apiKey = decrypt(setting.encrypted_api_key, setting.nonce);
+      const provider = createProvider(setting.provider, apiKey, setting.model);
+
+      context.log(`Parsing with ${setting.provider} (${setting.model})...`);
+      
+      const parsed = await provider.parseMenu(content, body.restaurantHint);
+
+      const duration = Date.now() - startTime;
+
+      // 4. Return parsed menu
+      return jsonResponse({
+        restaurant: parsed.restaurant,
+        items: parsed.items,
+        warnings: parsed.warnings,
+        meta: {
+          provider: setting.provider,
+          model: setting.model,
+          sourceType: body.sourceType,
+          itemCount: parsed.items.length,
+          durationMs: duration,
+        },
+      }, auth.correlationId, 200);
+      
+    } catch (error) {
+      context.error('Import parsing error:', error);
+      
+      return errorResponse(
+        500,
+        'Failed to parse menu',
+        auth.correlationId,
+        {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          sourceType: body.sourceType,
+        }
+      );
+    }
   }, { requireWorkspace: true }),
 });
 
@@ -145,70 +199,3 @@ app.http('commitImport', {
   }, { requireWorkspace: true }),
 });
 
-/**
- * Simple text parser for menu items
- * In production, this would use Azure OpenAI for better parsing
- */
-function parseMenuText(text: string, sourceType: string): {
-  restaurantName: string;
-  cuisine: string;
-  items: Array<{
-    name: string;
-    category?: string;
-    price?: number;
-    description?: string;
-    selected: boolean;
-  }>;
-} {
-  const lines = text.split('\n').filter(l => l.trim());
-  const items: Array<{
-    name: string;
-    category?: string;
-    price?: number;
-    description?: string;
-    selected: boolean;
-  }> = [];
-
-  let currentCategory: string | undefined;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    
-    // Skip empty lines
-    if (!trimmed) continue;
-
-    // Try to extract price
-    const priceMatch = trimmed.match(/\$?(\d+(?:\.\d{2})?)/);
-    const price = priceMatch ? parseFloat(priceMatch[1]!) : undefined;
-
-    // Remove price from name
-    let name = trimmed.replace(/\$?\d+(?:\.\d{2})?/g, '').trim();
-    
-    // Clean up common separators
-    name = name.replace(/[-–—]+$/, '').trim();
-    name = name.replace(/^[-–—]+/, '').trim();
-
-    // Skip if too short (likely a header or category)
-    if (name.length < 3) continue;
-
-    // Check if this looks like a category header (all caps, no price)
-    if (name === name.toUpperCase() && !price && name.length < 30) {
-      currentCategory = name.charAt(0) + name.slice(1).toLowerCase();
-      continue;
-    }
-
-    items.push({
-      name,
-      category: currentCategory,
-      price,
-      description: undefined,
-      selected: true,
-    });
-  }
-
-  return {
-    restaurantName: 'New Restaurant',
-    cuisine: 'Other',
-    items: items.slice(0, 50), // Limit to 50 items
-  };
-}
