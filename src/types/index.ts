@@ -43,6 +43,8 @@ export interface Restaurant {
   // Computed fields from API
   menuItemCount?: number;
   triedCount?: number;
+  isShared: boolean;
+  ownerName?: string;
 }
 
 export interface RestaurantFormData {

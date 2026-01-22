@@ -2,25 +2,44 @@ import { app, HttpRequest, HttpResponseInit } from '@azure/functions';
 import { sql, generateId, now } from '../db';
 import { withAuth, jsonResponse, errorResponse, AuthenticatedRequest } from '../middleware/auth';
 
-// GET /api/restaurants - Get all restaurants in workspace
+// GET /api/restaurants - Get all restaurants (owned and shared)
 app.http('getRestaurants', {
   methods: ['GET'],
   route: 'restaurants',
   handler: withAuth(async (request, context, auth) => {
-    if (!auth.workspaceId) {
-      return errorResponse(400, 'Workspace ID is required', auth.correlationId);
-    }
-
+    // We want restaurants from:
+    // 1. The current workspace (Owned)
+    // 2. Any other workspaces the user is a member of (Shared)
+    // HOWEVER, the current generic 'getRestaurants' was designed for a specific workspace context.
+    // The requirement says "Display all restaurants in a single unified Restaurants list."
+    // "Fetch restaurants owned by the user. Fetch restaurants shared with the user."
+    
+    // We will query for all restaurants in ANY workspace the user is a member of.
+    // We'll trust the auth.userId to find all memberships.
+    
     const restaurants = await sql`
       SELECT 
-        r.id, r.workspace_id, r.name, r.cuisine, r.address_suburb, 
-        r.notes, r.last_visited_date, r.created_at,
+        r.id, 
+        r.workspace_id, 
+        r.name, 
+        r.cuisine, 
+        r.address_suburb, 
+        r.notes, 
+        r.last_visited_date, 
+        r.created_at,
+        w.name as owner_name,
+        CASE WHEN r.workspace_id = ${auth.workspaceId} THEN false ELSE true END as is_shared,
         COUNT(mi.id) as menu_item_count,
         COUNT(CASE WHEN mi.tried = true THEN 1 END) as tried_count
       FROM restaurants r
+      JOIN workspaces w ON r.workspace_id = w.id
+      JOIN workspace_members wm ON r.workspace_id = wm.workspace_id
       LEFT JOIN menu_items mi ON r.id = mi.restaurant_id
-      WHERE r.workspace_id = ${auth.workspaceId}
-      GROUP BY r.id
+      WHERE wm.user_id = ${auth.user.id} 
+      -- We filter by user membership, not just the current active workspace ID
+      -- This effectively gets "My Restaurants" (where workspace_id matches current) 
+      -- AND "Shared Restaurants" (where workspace_id matches other memberships)
+      GROUP BY r.id, w.name, r.workspace_id
       ORDER BY r.name ASC
     `;
     
@@ -29,9 +48,11 @@ app.http('getRestaurants', {
         ...r,
         menuItemCount: Number(r.menu_item_count),
         triedCount: Number(r.tried_count),
+        isShared: r.is_shared,
+        ownerName: r.owner_name,
       }))
     }, auth.correlationId);
-  }, { requireWorkspace: true }),
+  }, { requireWorkspace: false }), // We don't strictly require a specific workspace context for the global list
 });
 
 // POST /api/restaurants - Create a restaurant

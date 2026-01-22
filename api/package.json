@@ -9,6 +9,9 @@
     "start": "npm run build && func start",
     "test": "vitest"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@azure/functions": "^4.5.0",
     "@neondatabase/serverless": "^0.9.5",

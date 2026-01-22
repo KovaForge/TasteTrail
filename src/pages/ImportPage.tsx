@@ -53,7 +53,7 @@ export function ImportPage() {
     // For images, we need to ensure we send just the base64 data if it has a prefix
     let processedValue = sourceValue;
     if (sourceType === 'image' && sourceValue.includes('base64,')) {
-      processedValue = sourceValue.split('base64,')[1];
+      processedValue = sourceValue.split('base64,')[1] || sourceValue;
     }
 
     const response = await api.parseImport({

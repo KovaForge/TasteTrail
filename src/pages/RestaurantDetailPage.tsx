@@ -70,6 +70,7 @@ export function RestaurantDetailPage() {
     );
   }
 
+
   if (!restaurant) {
     return (
       <Layout title="Not Found" showBack onBack={() => navigate('/')}>
@@ -86,21 +87,28 @@ export function RestaurantDetailPage() {
       showBack 
       onBack={() => navigate('/')}
       actions={
-        <button 
-          className="btn btn-ghost btn-icon"
-          onClick={() => navigate(`/restaurant/${id}/edit`)}
-          aria-label="Edit restaurant"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}>
-            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-          </svg>
-        </button>
+        !restaurant.isShared ? (
+          <button 
+            className="btn btn-ghost btn-icon"
+            onClick={() => navigate(`/restaurant/${id}/edit`)}
+            aria-label="Edit restaurant"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 20, height: 20 }}>
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            </svg>
+          </button>
+        ) : null
       }
     >
       {/* Restaurant Info */}
       <div className="card mb-md">
-        <div className="flex items-center gap-md mb-md">
+        <div className="flex items-center gap-md mb-md flex-wrap">
           <span className="cuisine-badge">{restaurant.cuisine}</span>
+          {restaurant.isShared && (
+            <span className="badge badge-info flex items-center gap-xs">
+              Shared by {restaurant.ownerName || 'another user'}
+            </span>
+          )}
           {restaurant.addressSuburb && (
             <span style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
               📍 {restaurant.addressSuburb}
@@ -115,12 +123,14 @@ export function RestaurantDetailPage() {
       {/* Menu Items Section */}
       <div className="flex justify-between items-center mb-md">
         <h3>Menu Items ({menuItems.length})</h3>
-        <button 
-          className="btn btn-secondary"
-          onClick={() => navigate(`/restaurant/${id}/menu-item/new`)}
-        >
-          Add Item
-        </button>
+        {!restaurant.isShared && (
+          <button 
+            className="btn btn-secondary"
+            onClick={() => navigate(`/restaurant/${id}/menu-item/new`)}
+          >
+            Add Item
+          </button>
+        )}
       </div>
 
       {menuItems.length === 0 ? (
@@ -132,7 +142,11 @@ export function RestaurantDetailPage() {
             <line x1="16" y1="17" x2="8" y2="17" />
           </svg>
           <h3 className="empty-state-title">No menu items yet</h3>
-          <p className="empty-state-description">Add items you want to try or have tried</p>
+          <p className="empty-state-description">
+            {restaurant.isShared 
+              ? 'The owner hasn\'t added any items yet' 
+              : 'Add items you want to try or have tried'}
+          </p>
         </div>
       ) : (
         <div className="list">

@@ -12,19 +12,25 @@ export function RestaurantsPage() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterMode, setFilterMode] = useState<'all' | 'mine' | 'shared'>('all');
 
   // Set API context
   useEffect(() => {
     setApiContext(currentWorkspace?.id || null, user?.id || null, addEntry);
   }, [currentWorkspace?.id, user?.id, addEntry]);
 
-  // Fetch restaurants
+  // Fetch restaurants (Combined list)
   useEffect(() => {
     async function fetchRestaurants() {
-      if (!currentWorkspace) return;
+      // We don't need currentWorkspace check anymore as the API returns all for the user
+      if (!user) return;
       
       setIsLoading(true);
-      const response = await api.getRestaurants(currentWorkspace.id);
+      // We pass the workspace ID just to satisfy the method signature if strictly typed, 
+      // but the backend ignores it for the global list. 
+      // However, api.getRestaurants currently expects an argument. 
+      // Let's pass 'global' or currentWorkspace.id if available.
+      const response = await api.getRestaurants(currentWorkspace?.id || 'global');
       if (response.data) {
         setRestaurants(response.data.restaurants);
       }
@@ -32,12 +38,20 @@ export function RestaurantsPage() {
     }
 
     fetchRestaurants();
-  }, [currentWorkspace]);
+  }, [user, currentWorkspace?.id]); // Re-fetch if user changes. kept workspace dep to be safe but logically it's user-bound now.
 
   // Filter and sort restaurants
   const filteredRestaurants = useMemo(() => {
     let result = [...restaurants];
     
+    // Apply Ownership Filter
+    if (filterMode === 'mine') {
+      result = result.filter(r => !r.isShared);
+    } else if (filterMode === 'shared') {
+      result = result.filter(r => r.isShared);
+    }
+    
+    // Apply Search
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
@@ -47,23 +61,47 @@ export function RestaurantsPage() {
     }
     
     return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [restaurants, searchQuery]);
+  }, [restaurants, searchQuery, filterMode]);
 
   return (
     <Layout title="TasteTrail">
-      {/* Search Bar */}
-      <div className="search-bar mb-md">
-        <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.3-4.3" />
-        </svg>
-        <input
-          type="search"
-          className="form-input search-input"
-          placeholder="Search restaurants..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+      <div className="mb-md">
+        {/* Search Bar */}
+        <div className="search-bar mb-sm">
+          <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="search"
+            className="form-input search-input"
+            placeholder="Search restaurants..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        {/* Filter Toggles */}
+        <div className="flex gap-xs overflow-x-auto pb-xs">
+          <button 
+            className={`btn btn-sm ${filterMode === 'all' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setFilterMode('all')}
+          >
+            All
+          </button>
+          <button 
+            className={`btn btn-sm ${filterMode === 'mine' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setFilterMode('mine')}
+          >
+            My Restaurants
+          </button>
+          <button 
+            className={`btn btn-sm ${filterMode === 'shared' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setFilterMode('shared')}
+          >
+            Shared with me
+          </button>
+        </div>
       </div>
 
       {/* Restaurant List */}
@@ -89,12 +127,18 @@ export function RestaurantsPage() {
             <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
           </svg>
           <h3 className="empty-state-title">
-            {searchQuery ? 'No restaurants found' : 'No restaurants yet'}
+            {searchQuery 
+              ? 'No restaurants found' 
+              : filterMode === 'shared' 
+                ? 'No shared restaurants yet' 
+                : 'No restaurants yet'}
           </h3>
           <p className="empty-state-description">
             {searchQuery 
               ? 'Try a different search term' 
-              : 'Add your first restaurant to get started'
+              : filterMode === 'shared'
+                ? 'Ask a family member to invite you to their workspace'
+                : 'Add your first restaurant to get started'
             }
           </p>
         </div>
@@ -105,19 +149,32 @@ export function RestaurantsPage() {
               key={restaurant.id}
               className="card card-interactive"
               onClick={() => navigate(`/restaurant/${restaurant.id}`)}
+              style={{ position: 'relative' }}
             >
               <div className="restaurant-card">
                 <div className="restaurant-avatar">
                   {restaurant.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="restaurant-info">
-                  <div className="restaurant-name">{restaurant.name}</div>
+                  <div className="flex items-center gap-sm">
+                    <div className="restaurant-name">{restaurant.name}</div>
+                    {restaurant.isShared && (
+                      <span className="badge badge-info flex items-center gap-xs" style={{ fontSize: '10px', padding: '2px 6px', height: 'auto' }}>
+                         Shared
+                      </span>
+                    )}
+                  </div>
                   <div className="restaurant-meta">
                     <span className="cuisine-badge">{restaurant.cuisine}</span>
                     {restaurant.triedCount !== undefined && restaurant.menuItemCount !== undefined && (
                       <span>
                         {restaurant.triedCount}/{restaurant.menuItemCount} tried
                       </span>
+                    )}
+                    {restaurant.isShared && restaurant.ownerName && (
+                       <span style={{ marginLeft: 'auto', fontSize: 'var(--font-size-xs)' }}>
+                         by {restaurant.ownerName}
+                       </span>
                     )}
                   </div>
                 </div>
