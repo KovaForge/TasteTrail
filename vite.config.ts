@@ -45,7 +45,8 @@ export default defineConfig({
               }
             }
           }
-        ]
+        ],
+        navigateFallbackDenylist: [/^\/\.auth/]
       }
     })
   ],
