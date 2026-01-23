@@ -5,6 +5,45 @@ import { decrypt, toBuffer } from '../utils/encryption';
 import { createProvider } from '../services/aiProviders';
 import { extractFromUrl, extractFromImage, extractFromText } from '../services/contentExtractors';
 
+import type { ParsedMenu } from '../services/aiProviders';
+
+/**
+ * Try to parse content as a valid menu JSON matching the expected schema.
+ * Returns the parsed menu if valid, or null to fall through to AI parsing.
+ */
+function tryParseMenuJson(content: string): ParsedMenu | null {
+  try {
+    const data = JSON.parse(content);
+
+    if (!data.restaurant?.name || !data.restaurant?.cuisine) return null;
+    if (!Array.isArray(data.items) || data.items.length === 0) return null;
+
+    // Validate at least the first item has a name
+    if (!data.items[0].name) return null;
+
+    return {
+      restaurant: {
+        name: data.restaurant.name,
+        cuisine: data.restaurant.cuisine,
+        addressSuburb: data.restaurant.addressSuburb,
+        notes: data.restaurant.notes,
+      },
+      items: data.items.map((item: any) => ({
+        name: item.name || 'Unknown Item',
+        category: item.category,
+        price: typeof item.price === 'number' ? item.price : undefined,
+        description: item.description,
+        tags: Array.isArray(item.tags) ? item.tags : [],
+        tried: false,
+        notes: '',
+      })),
+      warnings: Array.isArray(data.warnings) ? data.warnings : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 // POST /api/imports/parse - Parse menu from source with AI
 app.http('parseImport', {
   methods: ['POST'],
@@ -61,19 +100,38 @@ app.http('parseImport', {
 
       context.log(`Extracted ${content.length} characters`);
 
-      // 3. Decrypt API key and parse with AI
+      // 3. Check if content is already valid menu JSON (skip AI call)
+      const directParsed = tryParseMenuJson(content);
+      if (directParsed) {
+        context.log('Direct JSON import detected, skipping AI call');
+        const duration = Date.now() - startTime;
+        return jsonResponse({
+          restaurant: directParsed.restaurant,
+          items: directParsed.items,
+          warnings: directParsed.warnings,
+          meta: {
+            provider: 'direct',
+            model: 'json-import',
+            sourceType: body.sourceType,
+            itemCount: directParsed.items.length,
+            durationMs: duration,
+          },
+        }, auth.correlationId, 200);
+      }
+
+      // 4. Decrypt API key and parse with AI
       const encryptedBuffer = toBuffer(setting.encrypted_api_key);
       const nonceBuffer = toBuffer(setting.nonce);
       const apiKey = decrypt(encryptedBuffer, nonceBuffer);
       const provider = createProvider(setting.provider, apiKey, setting.model);
 
       context.log(`Parsing with ${setting.provider} (${setting.model})...`);
-      
+
       const parsed = await provider.parseMenu(content, body.restaurantHint);
 
       const duration = Date.now() - startTime;
 
-      // 4. Return parsed menu
+      // 5. Return parsed menu
       return jsonResponse({
         restaurant: parsed.restaurant,
         items: parsed.items,
