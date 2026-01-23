@@ -1,0 +1,92 @@
+{
+  "restaurant": {
+    "name": "Pizzeria Tiramisu",
+    "cuisine": "Italian",
+    "addressSuburb": "Melbourne CBD",
+    "notes": "Wood-fired pizza, dine-in and takeaway"
+  },
+  "items": [
+    {
+      "name": "Margherita",
+      "category": "Pizza",
+      "price": 18.50,
+      "description": "San Marzano tomato, fior di latte, fresh basil",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Pepperoni",
+      "category": "Pizza",
+      "price": 22.00,
+      "description": "Tomato base, mozzarella, spicy pepperoni",
+      "tags": [],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Quattro Formaggi",
+      "category": "Pizza",
+      "price": 24.00,
+      "description": "Mozzarella, gorgonzola, parmesan, provolone",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Bruschetta",
+      "category": "Entree",
+      "price": 14.00,
+      "description": "Toasted sourdough, diced tomato, garlic, basil, olive oil",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Arancini",
+      "category": "Entree",
+      "price": 12.00,
+      "description": "Fried risotto balls with mozzarella, served with napoli sauce",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Spaghetti Bolognese",
+      "category": "Pasta",
+      "price": 22.00,
+      "description": "Slow-cooked beef ragu, parmesan",
+      "tags": [],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Penne Arrabiata",
+      "category": "Pasta",
+      "price": 19.00,
+      "description": "Spicy tomato sauce, chilli, garlic, fresh parsley",
+      "tags": ["vegetarian", "spicy"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Tiramisu",
+      "category": "Dessert",
+      "price": 14.00,
+      "description": "Classic Italian dessert with mascarpone, espresso, cocoa",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Panna Cotta",
+      "category": "Dessert",
+      "price": 12.00,
+      "description": "Vanilla bean panna cotta with berry coulis",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    }
+  ],
+  "warnings": []
+}
