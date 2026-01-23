@@ -388,7 +388,7 @@ export function ImportPage() {
                 <div className="menu-item-content">
                   <div className="menu-item-name">{item.name}</div>
                   {item.price && (
-                    <div className="menu-item-price">${item.price.toFixed(2)}</div>
+                    <div className="menu-item-price">${Number(item.price).toFixed(2)}</div>
                   )}
                   {item.description && (
                     <div className="menu-item-description">{item.description}</div>

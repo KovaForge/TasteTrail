@@ -189,7 +189,7 @@ export function MenuItemDetailPage() {
         )}
         {item.price && (
           <p style={{ marginBottom: 'var(--space-sm)' }}>
-            <strong>Price:</strong> ${item.price.toFixed(2)}
+            <strong>Price:</strong> ${Number(item.price).toFixed(2)}
           </p>
         )}
         {item.description && (
