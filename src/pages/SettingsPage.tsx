@@ -22,6 +22,7 @@ export function SettingsPage() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Load AI settings on mount
   useEffect(() => {
@@ -29,18 +30,29 @@ export function SettingsPage() {
   }, []);
 
   async function loadAISettings() {
-    const response = await api.getAISettings();
-    if (response.data) {
-      setHasKey(response.data.hasKey);
-      if (response.data.provider) {
-        setAiProvider(response.data.provider as 'openai' | 'gemini');
+    try {
+      const response = await api.getAISettings();
+      if (response.data) {
+        setHasKey(response.data.hasKey);
+        if (response.data.provider) {
+          setAiProvider(response.data.provider as 'openai' | 'gemini');
+        }
+        if (response.data.model) {
+          setAiModel(response.data.model);
+        }
+        if (response.data.maskedKey) {
+          setMaskedKey(response.data.maskedKey);
+        }
+        // Show validation/decryption error if present
+        if (response.data.error) {
+          setError(`Warning: ${response.data.error}`);
+        }
       }
-      if (response.data.model) {
-        setAiModel(response.data.model);
-      }
-      if (response.data.maskedKey) {
-        setMaskedKey(response.data.maskedKey);
-      }
+    } catch (err: any) {
+      console.error('Failed to load AI settings:', err);
+      // only show error if it's not a simple 404-like "not configured"
+      // but typically getAISettings returns 200 with hasKey=false
+      // setError('Failed to load settings'); 
     }
   }
 
@@ -383,6 +395,12 @@ export function SettingsPage() {
         {testResult && (
           <div className={`mb-md p-sm rounded ${testResult.success ? 'bg-success-subtle text-success' : 'bg-error-subtle text-error'}`} style={{ fontSize: 'var(--font-size-sm)' }}>
             {testResult.message}
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-md p-sm rounded bg-error-subtle text-error" style={{ fontSize: 'var(--font-size-sm)' }}>
+            {error}
           </div>
         )}
         
