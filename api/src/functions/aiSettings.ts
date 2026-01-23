@@ -47,7 +47,7 @@ app.http('getAISettings', {
             hasKey: false,
             provider: setting.provider,
             model: setting.model,
-            error: 'Failed to decrypt key'
+            error: `Decryption failed: ${error instanceof Error ? error.message : String(error)}`
         }, auth.correlationId);
     }
   }),
