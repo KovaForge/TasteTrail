@@ -204,6 +204,7 @@ export const api = {
   // Imports
   parseImport: (data: { sourceType: string; sourceValue: string; restaurantHint?: string }) =>
     apiFetch<{ 
+      id: string;
       restaurant: any; 
       items: any[]; 
       warnings: string[];
