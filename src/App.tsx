@@ -59,7 +59,11 @@ function AuthenticatedRoutes() {
         }}>
           Track your favorite restaurant dishes and share with family
         </p>
-        <button className="btn btn-primary" onClick={login} style={{ minWidth: 200 }}>
+        <a 
+          href="/.auth/login/aad?post_login_redirect_uri=/"
+          className="btn btn-primary" 
+          style={{ minWidth: 200, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textDecoration: 'none' }}
+        >
           <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
             <rect x="2" y="2" width="9" height="9" fill="#f25022" />
             <rect x="13" y="2" width="9" height="9" fill="#7fba00" />
@@ -67,7 +71,7 @@ function AuthenticatedRoutes() {
             <rect x="13" y="13" width="9" height="9" fill="#ffb900" />
           </svg>
           Sign in with Microsoft
-        </button>
+        </a>
       </div>
     );
   }
