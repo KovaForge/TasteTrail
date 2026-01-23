@@ -196,8 +196,17 @@ export class GeminiProvider implements AIProvider {
     );
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Gemini API error (${response.status}): ${error}`);
+      const errorText = await response.text();
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson?.error?.message?.includes('User location is not supported')) {
+          throw new Error('Gemini API is not available in your server\'s region. Please use OpenAI provider instead.');
+        }
+        throw new Error(`Gemini API error (${response.status}): ${errorJson?.error?.message || errorText}`);
+      } catch (e) {
+        if (e instanceof Error && e.message.includes('not available')) throw e;
+        throw new Error(`Gemini API error (${response.status}): ${errorText}`);
+      }
     }
 
     const data = await response.json();
@@ -224,10 +233,23 @@ export class GeminiProvider implements AIProvider {
           model: this.model,
         };
       } else {
-        const error = await response.text();
+        const errorText = await response.text();
+        let message = `API error (${response.status}): ${errorText}`;
+
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson?.error?.message?.includes('User location is not supported')) {
+            message = 'Gemini API is not available in your server\'s region. Please use OpenAI provider instead, or deploy your server in a supported region.';
+          } else if (errorJson?.error?.message) {
+            message = errorJson.error.message;
+          }
+        } catch {
+          // Use raw error text
+        }
+
         return {
           success: false,
-          message: `Authentication failed: ${error}`,
+          message,
           model: this.model,
         };
       }
