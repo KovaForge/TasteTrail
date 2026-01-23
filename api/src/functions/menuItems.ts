@@ -82,40 +82,41 @@ app.http('createMenuItem', {
     const id = generateId();
     const createdAt = now();
 
-    await sql.transaction(async (tx) => {
-      // 1. Insert Definition
-      await tx`
-        INSERT INTO menu_items (
-          id, restaurant_id, workspace_id, name, category, price, description, created_at
+    // Note: Neon serverless driver doesn't support transaction callbacks.
+    // Using sequential queries instead.
+
+    // 1. Insert Definition
+    await sql`
+      INSERT INTO menu_items (
+        id, restaurant_id, workspace_id, name, category, price, description, created_at
+      ) VALUES (
+        ${id},
+        ${restaurantId},
+        ${workspaceId},
+        ${body.name.trim()},
+        ${body.category?.trim() || null},
+        ${body.price || null},
+        ${body.description?.trim() || null},
+        ${createdAt}
+      )
+    `;
+
+    // 2. Insert Personal State (if any)
+    if (body.tried || body.rating || body.notes || (body.tags && body.tags.length > 0)) {
+      await sql`
+        INSERT INTO user_menu_item_state (
+          user_id, menu_item_id, tried, last_tried_date, rating, notes, tags
         ) VALUES (
+          ${auth.user.id},
           ${id},
-          ${restaurantId},
-          ${workspaceId},
-          ${body.name.trim()},
-          ${body.category?.trim() || null},
-          ${body.price || null},
-          ${body.description?.trim() || null},
-          ${createdAt}
+          ${body.tried || false},
+          ${body.tried ? createdAt : null},
+          ${body.rating || null},
+          ${body.notes?.trim() || null},
+          ${JSON.stringify(body.tags || [])}
         )
       `;
-
-      // 2. Insert Personal State (if any)
-      if (body.tried || body.rating || body.notes || (body.tags && body.tags.length > 0)) {
-        await tx`
-          INSERT INTO user_menu_item_state (
-            user_id, menu_item_id, tried, last_tried_date, rating, notes, tags
-          ) VALUES (
-            ${auth.user.id},
-            ${id},
-            ${body.tried || false},
-            ${body.tried ? createdAt : null},
-            ${body.rating || null},
-            ${body.notes?.trim() || null},
-            ${JSON.stringify(body.tags || [])}
-          )
-        `;
-      }
-    });
+    }
 
     return jsonResponse({
       id,

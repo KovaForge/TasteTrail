@@ -171,10 +171,12 @@ app.http('updateRestaurant', {
     }
 
     // Execute update using raw SQL
+    // Execute update using raw SQL
     const setClause = updates.map((u, i) => `${u} = $${i + 2}`).join(', ');
-    await sql.transaction([
-      sql`UPDATE restaurants SET ${sql(updates.map((u, i) => [u, values[i]]))} WHERE id = ${id}`
-    ]);
+    const query = `UPDATE restaurants SET ${setClause} WHERE id = $1`;
+    
+    // Neon driver supports sql(query, params) for raw queries
+    await sql(query, [id, ...values]);
 
     // Fetch updated
     const restaurants = await sql`
