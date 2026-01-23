@@ -420,7 +420,7 @@ export function SettingsPage() {
           >
             {isSaving ? 'Saving...' : 'Save'}
           </button>
-          {hasKey && (
+          {(hasKey || error) && (
             <button 
               className="btn btn-ghost text-error" 
               onClick={handleClearKey}
