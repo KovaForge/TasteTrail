@@ -34,46 +34,37 @@ export function SettingsPage() {
       const response = await api.getAISettings();
       if (response.data) {
         setHasKey(response.data.hasKey);
+        setMaskedKey(response.data.maskedKey || '');
+        setError(response.data.error ? `Warning: ${response.data.error}` : null);
         if (response.data.provider) {
           setAiProvider(response.data.provider as 'openai' | 'gemini');
         }
         if (response.data.model) {
           setAiModel(response.data.model);
         }
-        if (response.data.maskedKey) {
-          setMaskedKey(response.data.maskedKey);
-        }
-        // Show validation/decryption error if present
-        if (response.data.error) {
-          setError(`Warning: ${response.data.error}`);
-        }
       }
     } catch (err: any) {
       console.error('Failed to load AI settings:', err);
-      // only show error if it's not a simple 404-like "not configured"
-      // but typically getAISettings returns 200 with hasKey=false
-      // setError('Failed to load settings'); 
     }
   }
 
   async function handleSaveAISettings() {
     if (!aiKey.trim()) return;
-    
+
     setIsSaving(true);
     setTestResult(null);
-    
+    setError(null);
+
     try {
-      const response = await api.saveAISettings(aiProvider, aiKey, aiModel);
-      if (response.data) {
-        setHasKey(true);
-        setMaskedKey(response.data.maskedKey);
-        setAiKey(''); // Clear input after save
-        setTestResult({ success: true, message: 'API key saved successfully' });
-      }
+      await api.saveAISettings(aiProvider, aiKey, aiModel);
+      setAiKey('');
+      setTestResult({ success: true, message: 'API key saved successfully' });
+      // Reload from DB to confirm the round-trip works
+      await loadAISettings();
     } catch (error) {
       setTestResult({ success: false, message: 'Failed to save API key' });
     }
-    
+
     setIsSaving(false);
   }
 
