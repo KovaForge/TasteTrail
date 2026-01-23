@@ -9,51 +9,56 @@ app.http('getAISettings', {
   methods: ['GET'],
   route: 'ai-settings',
   handler: withAuth(async (request, context, auth) => {
+    // Fetch all settings for the user
     const settings = await sql`
       SELECT provider, model, encrypted_api_key, nonce
       FROM user_ai_settings
       WHERE user_id = ${auth.user.id}
     `;
 
-    if (settings.length === 0) {
-      return jsonResponse({
-        hasKey: false,
-      }, auth.correlationId);
+    const response = {
+      hasOpenAi: false,
+      hasGemini: false,
+      openAiModel: 'gpt-4o', // Default
+      geminiModel: 'gemini-2.0-flash-exp', // Default
+      maskedOpenAiKey: undefined as string | undefined,
+      maskedGeminiKey: undefined as string | undefined,
+      error: undefined as string | undefined
+    };
+
+    if (settings.length > 0) {
+      for (const setting of settings) {
+        try {
+          const encryptedBuffer = toBuffer(setting.encrypted_api_key);
+          const nonceBuffer = toBuffer(setting.nonce);
+          
+          // Try to decrypt just to verify validity/masking
+          const apiKey = decrypt(encryptedBuffer, nonceBuffer);
+          const maskedKey = apiKey.length > 4 
+            ? `${apiKey.substring(0, 3)}...${apiKey.substring(apiKey.length - 4)}`
+            : '***';
+
+          if (setting.provider === 'openai') {
+            response.hasOpenAi = true;
+            response.openAiModel = setting.model;
+            response.maskedOpenAiKey = maskedKey;
+          } else if (setting.provider === 'gemini') {
+            response.hasGemini = true;
+            response.geminiModel = setting.model;
+            response.maskedGeminiKey = maskedKey;
+          }
+        } catch (error) {
+          console.error(`[Encryption Error] Failed to decrypt ${setting.provider} key:`, error);
+          response.error = `Decryption failed for ${setting.provider}: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
     }
 
-    const setting = settings[0];
-    
-    try {
-        const encryptedBuffer = toBuffer(setting.encrypted_api_key);
-        const nonceBuffer = toBuffer(setting.nonce);
-        
-        console.log(`[getAISettings] Buffers: cipher=${encryptedBuffer.length}B, nonce=${nonceBuffer.length}B`);
-
-        // Decrypt key to get last 4 characters for masking
-        const apiKey = decrypt(encryptedBuffer, nonceBuffer);
-        const maskedKey = apiKey.length > 4 
-          ? `${apiKey.substring(0, 3)}...${apiKey.substring(apiKey.length - 4)}`
-          : '***';
-
-        return jsonResponse({
-          provider: setting.provider,
-          model: setting.model,
-          hasKey: true,
-          maskedKey,
-        }, auth.correlationId);
-    } catch (error) {
-        console.error('[Encryption Error in getAISettings]', error);
-        return jsonResponse({
-            hasKey: false,
-            provider: setting.provider,
-            model: setting.model,
-            error: `Decryption failed: ${error instanceof Error ? error.message : String(error)}`
-        }, auth.correlationId);
-    }
+    return jsonResponse(response, auth.correlationId);
   }),
 });
 
-// POST /api/ai-settings - Save/update user's AI settings
+// POST /api/ai-settings - Save/update user's AI settings for a specific provider
 app.http('saveAISettings', {
   methods: ['POST'],
   route: 'ai-settings',
@@ -79,44 +84,30 @@ app.http('saveAISettings', {
     // Encrypt the API key
     const { ciphertext, nonce } = encrypt(body.apiKey.trim());
     // Convert Buffers to plain hex strings for the Neon HTTP driver
-    // Raw Buffer objects don't serialize correctly over HTTP for BYTEA columns
     const ciphertextHex = ciphertext.toString('hex');
     const nonceHex = nonce.toString('hex');
     const timestamp = now();
 
-    // Upsert settings
-    const existing = await sql`
-      SELECT user_id FROM user_ai_settings WHERE user_id = ${auth.user.id}
+    // Upsert settings (Composite key: user_id + provider)
+    await sql`
+      INSERT INTO user_ai_settings (
+        user_id, workspace_id, provider, encrypted_api_key, nonce, model, created_at, updated_at
+      ) VALUES (
+        ${auth.user.id},
+        ${auth.workspaceId || '00000000-0000-0000-0000-000000000000'},
+        ${body.provider},
+        decode(${ciphertextHex}, 'hex'),
+        decode(${nonceHex}, 'hex'),
+        ${body.model},
+        ${timestamp},
+        ${timestamp}
+      )
+      ON CONFLICT (user_id, provider) DO UPDATE SET
+        encrypted_api_key = EXCLUDED.encrypted_api_key,
+        nonce = EXCLUDED.nonce,
+        model = EXCLUDED.model,
+        updated_at = EXCLUDED.updated_at
     `;
-
-    if (existing.length > 0) {
-      // Update
-      await sql`
-        UPDATE user_ai_settings
-        SET provider = ${body.provider},
-            encrypted_api_key = decode(${ciphertextHex}, 'hex'),
-            nonce = decode(${nonceHex}, 'hex'),
-            model = ${body.model},
-            updated_at = ${timestamp}
-        WHERE user_id = ${auth.user.id}
-      `;
-    } else {
-      // Insert
-      await sql`
-        INSERT INTO user_ai_settings (
-          user_id, workspace_id, provider, encrypted_api_key, nonce, model, created_at, updated_at
-        ) VALUES (
-          ${auth.user.id},
-          ${auth.workspaceId || '00000000-0000-0000-0000-000000000000'},
-          ${body.provider},
-          decode(${ciphertextHex}, 'hex'),
-          decode(${nonceHex}, 'hex'),
-          ${body.model},
-          ${timestamp},
-          ${timestamp}
-        )
-      `;
-    }
 
     // Mask the key for response
     const maskedKey = body.apiKey.length > 4
@@ -131,15 +122,25 @@ app.http('saveAISettings', {
   }),
 });
 
-// DELETE /api/ai-settings - Delete user's AI settings
+// DELETE /api/ai-settings - Delete user's AI settings (Optionally filtered by provider)
 app.http('deleteAISettings', {
   methods: ['DELETE'],
   route: 'ai-settings',
   handler: withAuth(async (request, context, auth) => {
-    await sql`
-      DELETE FROM user_ai_settings
-      WHERE user_id = ${auth.user.id}
-    `;
+    const provider = request.query.get('provider'); // Optional query param
+
+    if (provider && ['openai', 'gemini'].includes(provider)) {
+       await sql`
+        DELETE FROM user_ai_settings
+        WHERE user_id = ${auth.user.id} AND provider = ${provider}
+      `;
+    } else {
+      // Delete ALL if no provider specified
+      await sql`
+        DELETE FROM user_ai_settings
+        WHERE user_id = ${auth.user.id}
+      `;
+    }
 
     return jsonResponse({ success: true }, auth.correlationId);
   }),
@@ -150,24 +151,37 @@ app.http('deleteAISettings', {
     methods: ['POST'],
     route: 'ai-settings/test',
     handler: withAuth(async (request, context, auth) => {
-      const settings = await sql`
-        SELECT provider, model, encrypted_api_key, nonce
-        FROM user_ai_settings
-        WHERE user_id = ${auth.user.id}
-      `;
+      const body = await request.json() as { provider?: string };
+      
+      let query;
+      if (body.provider && ['openai', 'gemini'].includes(body.provider)) {
+        query = sql`
+          SELECT provider, model, encrypted_api_key, nonce
+          FROM user_ai_settings
+          WHERE user_id = ${auth.user.id} AND provider = ${body.provider}
+        `;
+      } else {
+        // Default to first available if not specified
+        query = sql`
+          SELECT provider, model, encrypted_api_key, nonce
+          FROM user_ai_settings
+          WHERE user_id = ${auth.user.id}
+          LIMIT 1
+        `;
+      }
+
+      const settings = await query;
   
       if (settings.length === 0) {
-        return errorResponse(400, 'No AI settings configured', auth.correlationId);
+        return errorResponse(400, 'AI settings not configured for this provider', auth.correlationId);
       }
   
       const setting = settings[0];
   
       try {
-        // Convert BYTEA data to proper Buffers (handles hex strings, Uint8Array, etc.)
+        // Convert BYTEA data to proper Buffers
         const encryptedBuffer = toBuffer(setting.encrypted_api_key);
         const nonceBuffer = toBuffer(setting.nonce);
-
-        console.log(`[DEBUG] Decrypting Key: CipherLen=${encryptedBuffer.length}, NonceLen=${nonceBuffer.length}`);
 
         // Decrypt key and create provider
         const apiKey = decrypt(encryptedBuffer, nonceBuffer);

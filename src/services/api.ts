@@ -223,7 +223,15 @@ export const api = {
 
   // AI Settings
   getAISettings: () => 
-    apiFetch<{ provider?: string; model?: string; hasKey: boolean; maskedKey?: string; error?: string }>('/api/ai-settings'),
+    apiFetch<{ 
+      hasOpenAi: boolean; 
+      hasGemini: boolean;
+      openAiModel: string;
+      geminiModel: string;
+      maskedOpenAiKey?: string; 
+      maskedGeminiKey?: string; 
+      error?: string 
+    }>('/api/ai-settings'),
   
   saveAISettings: (provider: string, apiKey: string, model: string) =>
     apiFetch<{ provider: string; model: string; maskedKey: string }>('/api/ai-settings', {
@@ -231,11 +239,12 @@ export const api = {
       body: JSON.stringify({ provider, apiKey, model }),
     }),
   
-  deleteAISettings: () =>
-    apiFetch<{ success: boolean }>('/api/ai-settings', { method: 'DELETE' }),
+  deleteAISettings: (provider?: string) =>
+    apiFetch<{ success: boolean }>(`/api/ai-settings${provider ? `?provider=${provider}` : ''}`, { method: 'DELETE' }),
   
-  testAIConnection: () =>
+  testAIConnection: (provider?: string) =>
     apiFetch<{ success: boolean; message: string; model: string }>('/api/ai-settings/test', { 
-      method: 'POST' 
+      method: 'POST',
+      body: JSON.stringify({ provider })
     }),
 };

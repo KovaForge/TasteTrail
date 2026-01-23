@@ -14,11 +14,19 @@ export function SettingsPage() {
   const [isInviting, setIsInviting] = useState(false);
 
   // AI Settings state
-  const [aiProvider, setAiProvider] = useState<'openai' | 'gemini'>('openai');
-  const [aiKey, setAiKey] = useState('');
-  const [aiModel, setAiModel] = useState('gpt-4o');
-  const [hasKey, setHasKey] = useState(false);
-  const [maskedKey, setMaskedKey] = useState('');
+  const [activeProvider, setActiveProvider] = useState<'openai' | 'gemini'>('openai');
+  
+  // Independent state for each provider
+  const [openAiKey, setOpenAiKey] = useState('');
+  const [openAiModel, setOpenAiModel] = useState('gpt-4o');
+  const [hasOpenAi, setHasOpenAi] = useState(false);
+  const [maskedOpenAiKey, setMaskedOpenAiKey] = useState('');
+
+  const [geminiKey, setGeminiKey] = useState('');
+  const [geminiModel, setGeminiModel] = useState('gemini-2.0-flash-exp');
+  const [hasGemini, setHasGemini] = useState(false);
+  const [maskedGeminiKey, setMaskedGeminiKey] = useState('');
+
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -33,15 +41,16 @@ export function SettingsPage() {
     try {
       const response = await api.getAISettings();
       if (response.data) {
-        setHasKey(response.data.hasKey);
-        setMaskedKey(response.data.maskedKey || '');
+        setHasOpenAi(response.data.hasOpenAi);
+        setHasGemini(response.data.hasGemini);
+        
+        if (response.data.openAiModel) setOpenAiModel(response.data.openAiModel);
+        if (response.data.geminiModel) setGeminiModel(response.data.geminiModel);
+        
+        if (response.data.maskedOpenAiKey) setMaskedOpenAiKey(response.data.maskedOpenAiKey);
+        if (response.data.maskedGeminiKey) setMaskedGeminiKey(response.data.maskedGeminiKey);
+        
         setError(response.data.error ? `Warning: ${response.data.error}` : null);
-        if (response.data.provider) {
-          setAiProvider(response.data.provider as 'openai' | 'gemini');
-        }
-        if (response.data.model) {
-          setAiModel(response.data.model);
-        }
       }
     } catch (err: any) {
       console.error('Failed to load AI settings:', err);
@@ -49,16 +58,25 @@ export function SettingsPage() {
   }
 
   async function handleSaveAISettings() {
-    if (!aiKey.trim()) return;
+    // Determine which key to save based on active provider
+    const keyToSave = activeProvider === 'openai' ? openAiKey : geminiKey;
+    const modelToSave = activeProvider === 'openai' ? openAiModel : geminiModel;
+
+    if (!keyToSave.trim()) return;
 
     setIsSaving(true);
     setTestResult(null);
     setError(null);
 
     try {
-      await api.saveAISettings(aiProvider, aiKey, aiModel);
-      setAiKey('');
-      setTestResult({ success: true, message: 'API key saved successfully' });
+      await api.saveAISettings(activeProvider, keyToSave, modelToSave);
+      
+      // Clear specific input after save
+      if (activeProvider === 'openai') setOpenAiKey('');
+      else setGeminiKey('');
+      
+      setTestResult({ success: true, message: `${activeProvider === 'openai' ? 'OpenAI' : 'Gemini'} key saved successfully` });
+      
       // Reload from DB to confirm the round-trip works
       await loadAISettings();
     } catch (error) {
@@ -71,8 +89,21 @@ export function SettingsPage() {
   async function handleTestConnection() {
     setTestResult(null);
     
+    // Test logic typically uses the key stored in DB (unless we pass it, but api.testAIConnection reads from DB)
+    // IMPORTANT: backend testAIConnection needs to know WHICH provider to test?
+    // Currently backend testAIConnection tests assuming ONE active logic.
+    // We should probably pass provider to testAIConnection or backend iterates?
+    // Let's assume backend currently reads 'provider' from single-row DB. 
+    // Wait, backend will return Multiple Rows now.
+    // We need to update api.testAIConnection to accept 'provider' argument!
+    
+    // Temporary: Frontend change only here. I need to update backend testAIConnection too!
+    
     try {
-      const response = await api.testAIConnection();
+      // TODO: Update backend to accept provider param
+      // For now, let's assume API is updated (I will update it next step)
+       // @ts-ignore
+      const response = await api.testAIConnection(activeProvider); 
       if (response.data) {
         setTestResult({ 
           success: response.data.success, 
@@ -85,13 +116,24 @@ export function SettingsPage() {
   }
 
   async function handleClearKey() {
-    if (!confirm('Are you sure you want to remove your API key?')) return;
+    if (!confirm(`Are you sure you want to remove your ${activeProvider === 'openai' ? 'OpenAI' : 'Gemini'} API key?`)) return;
     
     try {
-      await api.deleteAISettings();
-      setHasKey(false);
-      setMaskedKey('');
-      setAiKey('');
+      // Pass query param provider to delete specific key
+      // api.deleteAISettings needs update to accept provider?
+      // deleteAISettings(provider)
+      await api.deleteAISettings(activeProvider);
+      
+      if (activeProvider === 'openai') {
+        setHasOpenAi(false);
+        setMaskedOpenAiKey('');
+        setOpenAiKey('');
+      } else {
+        setHasGemini(false);
+        setMaskedGeminiKey('');
+        setGeminiKey('');
+      }
+      
       setTestResult({ success: true, message: 'API key removed' });
     } catch (error) {
       setTestResult({ success: false, message: 'Failed to remove API key' });
@@ -302,14 +344,8 @@ export function SettingsPage() {
           <label className="form-label">Provider</label>
           <select 
             className="form-input form-select" 
-            value={aiProvider} 
-            onChange={(e) => {
-              const newProvider = e.target.value as 'openai' | 'gemini';
-              setAiProvider(newProvider);
-              // Set default models
-              if (newProvider === 'openai') setAiModel('gpt-4o');
-              else setAiModel('gemini-2.0-flash-exp');
-            }}
+            value={activeProvider} 
+            onChange={(e) => setActiveProvider(e.target.value as 'openai' | 'gemini')}
           >
             <option value="openai">OpenAI</option>
             <option value="gemini">Gemini</option>
@@ -323,9 +359,11 @@ export function SettingsPage() {
             <input
               type={showApiKey ? 'text' : 'password'}
               className="form-input"
-              placeholder={hasKey ? `Stored: ${maskedKey}` : 'Enter API key'}
-              value={aiKey}
-              onChange={(e) => setAiKey(e.target.value)}
+              placeholder={(activeProvider === 'openai' ? hasOpenAi : hasGemini) 
+                ? `Stored: ${activeProvider === 'openai' ? maskedOpenAiKey : maskedGeminiKey}` 
+                : 'Enter API key'}
+              value={activeProvider === 'openai' ? openAiKey : geminiKey}
+              onChange={(e) => activeProvider === 'openai' ? setOpenAiKey(e.target.value) : setGeminiKey(e.target.value)}
               style={{ flex: 1 }}
             />
             <button 
@@ -363,10 +401,10 @@ export function SettingsPage() {
           <label className="form-label">Model</label>
           <select 
             className="form-input form-select" 
-            value={aiModel} 
-            onChange={(e) => setAiModel(e.target.value)}
+            value={activeProvider === 'openai' ? openAiModel : geminiModel} 
+            onChange={(e) => activeProvider === 'openai' ? setOpenAiModel(e.target.value) : setGeminiModel(e.target.value)}
           >
-            {aiProvider === 'openai' ? (
+            {activeProvider === 'openai' ? (
               <>
                 <option value="gpt-4o">GPT-4o (Recommended)</option>
                 <option value="gpt-4o-mini">GPT-4o Mini</option>
@@ -400,18 +438,18 @@ export function SettingsPage() {
           <button 
             className="btn btn-secondary" 
             onClick={handleTestConnection}
-            disabled={!hasKey && !aiKey}
+            disabled={!(activeProvider === 'openai' ? hasOpenAi : hasGemini) && !(activeProvider === 'openai' ? openAiKey : geminiKey)}
           >
             Test Connection
           </button>
           <button 
             className="btn btn-primary" 
             onClick={handleSaveAISettings}
-            disabled={!aiKey.trim() || isSaving}
+            disabled={!(activeProvider === 'openai' ? openAiKey.trim() : geminiKey.trim()) || isSaving}
           >
             {isSaving ? 'Saving...' : 'Save'}
           </button>
-          {(hasKey || error) && (
+          {((activeProvider === 'openai' ? hasOpenAi : hasGemini) || error) && (
             <button 
               className="btn btn-ghost text-error" 
               onClick={handleClearKey}
