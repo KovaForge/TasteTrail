@@ -39,7 +39,7 @@ export function ImportPage() {
     // "Text only imports may optionally still work without AI but default to blocked for consistency"
     // So we check for all.
     const settingsResponse = await api.getAISettings();
-    if (!settingsResponse.data?.hasKey) {
+    if (!settingsResponse.data?.hasOpenAi && !settingsResponse.data?.hasGemini) {
       addEntry({
         type: 'error',
         message: 'AI provider not configured. Please add your API key in Settings.',
