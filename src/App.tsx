@@ -12,7 +12,7 @@ import {
 } from './pages';
 
 function AuthenticatedRoutes() {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
   // Show loading state
   if (isLoading) {
