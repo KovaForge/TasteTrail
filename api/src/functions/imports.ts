@@ -220,6 +220,7 @@ app.http('commitImport', {
 
     const restaurantName = body.restaurantName.trim();
     const cuisine = body.cuisine.trim();
+    const createdAt = now();
 
     // 1. Check for existing restaurant by name and workspace
     const existingRestaurants = await sql`
