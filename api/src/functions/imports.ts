@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit } from '@azure/functions';
 import { sql, generateId, now } from '../db';
 import { withAuth, jsonResponse, errorResponse, AuthenticatedRequest } from '../middleware/auth';
-import { decrypt } from '../utils/encryption';
+import { decrypt, toBuffer } from '../utils/encryption';
 import { createProvider } from '../services/aiProviders';
 import { extractFromUrl, extractFromImage, extractFromText } from '../services/contentExtractors';
 
@@ -62,7 +62,9 @@ app.http('parseImport', {
       context.log(`Extracted ${content.length} characters`);
 
       // 3. Decrypt API key and parse with AI
-      const apiKey = decrypt(setting.encrypted_api_key, setting.nonce);
+      const encryptedBuffer = toBuffer(setting.encrypted_api_key);
+      const nonceBuffer = toBuffer(setting.nonce);
+      const apiKey = decrypt(encryptedBuffer, nonceBuffer);
       const provider = createProvider(setting.provider, apiKey, setting.model);
 
       context.log(`Parsing with ${setting.provider} (${setting.model})...`);

@@ -19,6 +19,7 @@ export function ImportPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [importId, setImportId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ImportDraft | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
 
   // Set API context
   useEffect(() => {
@@ -56,30 +57,29 @@ export function ImportPage() {
       processedValue = sourceValue.split('base64,')[1] || sourceValue;
     }
 
+    setParseError(null);
+
     const response = await api.parseImport({
       sourceType,
       sourceValue: processedValue,
     });
-    
+
     if (response.data) {
-      // response.data now matches { restaurant, items, warnings, meta }
-      // We need to map it to ImportDraft shape
-      setImportId('temp-' + Date.now()); // Parse doesn't create a persistent record yet until commit (or we might want to change that behavior if backend persists it)
-      // Actually backend createImport persisted it. parseImport does not seem to persist a draft record in DB in the new implementation?
-      // Wait, the new parseImport implementation DOES NOT persist to menu_imports table. It just returns JSON.
-      // So we use a temp ID.
-      
+      setImportId('temp-' + Date.now());
       setDraft({
         restaurantName: response.data.restaurant.name,
         cuisine: response.data.restaurant.cuisine,
         items: response.data.items.map((item: any) => ({
           ...item,
-          selected: true, // Default to selected
+          selected: true,
         })),
       });
       setStep('review');
+    } else if (response.error) {
+      const detail = (response.error.details?.message as string) || response.error.message;
+      setParseError(detail);
     }
-    
+
     setIsProcessing(false);
   };
 
@@ -292,6 +292,12 @@ export function ImportPage() {
             </div>
           )}
         </div>
+
+        {parseError && (
+          <div className="p-sm rounded bg-error-subtle text-error" style={{ fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-sm)' }}>
+            {parseError}
+          </div>
+        )}
 
         <button
           className="btn btn-primary"

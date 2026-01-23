@@ -15,7 +15,6 @@
   "dependencies": {
     "@azure/functions": "^4.5.0",
     "@neondatabase/serverless": "^0.9.5",
-    "playwright": "^1.57.0",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
