@@ -78,6 +78,10 @@ app.http('saveAISettings', {
 
     // Encrypt the API key
     const { ciphertext, nonce } = encrypt(body.apiKey.trim());
+    // Convert Buffers to PostgreSQL hex format for the Neon HTTP driver
+    // Raw Buffer objects don't serialize correctly over HTTP for BYTEA columns
+    const ciphertextHex = '\\x' + ciphertext.toString('hex');
+    const nonceHex = '\\x' + nonce.toString('hex');
     const timestamp = now();
 
     // Upsert settings
@@ -90,8 +94,8 @@ app.http('saveAISettings', {
       await sql`
         UPDATE user_ai_settings
         SET provider = ${body.provider},
-            encrypted_api_key = ${ciphertext},
-            nonce = ${nonce},
+            encrypted_api_key = ${ciphertextHex}::bytea,
+            nonce = ${nonceHex}::bytea,
             model = ${body.model},
             updated_at = ${timestamp}
         WHERE user_id = ${auth.user.id}
@@ -105,8 +109,8 @@ app.http('saveAISettings', {
           ${auth.user.id},
           ${auth.workspaceId || '00000000-0000-0000-0000-000000000000'},
           ${body.provider},
-          ${ciphertext},
-          ${nonce},
+          ${ciphertextHex}::bytea,
+          ${nonceHex}::bytea,
           ${body.model},
           ${timestamp},
           ${timestamp}
