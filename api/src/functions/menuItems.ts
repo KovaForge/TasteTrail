@@ -205,99 +205,62 @@ app.http('updateMenuItem', {
     const role = membership[0].role;
     const canEditDefinition = role === 'Owner' || role === 'Editor';
 
-    // Definition updates (Only allowed if Owner/Editor)
-    const defUpdates: string[] = [];
-    const defValues: unknown[] = [];
+    // Check if there's anything to update
+    const hasDefinitionUpdates = body.name !== undefined || body.category !== undefined || 
+                                  body.price !== undefined || body.description !== undefined;
+    const hasStateUpdates = body.tried !== undefined || body.lastTriedDate !== undefined ||
+                            body.rating !== undefined || body.notes !== undefined || body.tags !== undefined;
 
-    if (canEditDefinition) {
-      if (body.name !== undefined) { defUpdates.push('name'); defValues.push(body.name.trim()); }
-      if (body.category !== undefined) { defUpdates.push('category'); defValues.push(body.category.trim()); }
-      if (body.price !== undefined) { defUpdates.push('price'); defValues.push(body.price); }
-      if (body.description !== undefined) { defUpdates.push('description'); defValues.push(body.description.trim()); }
+    if (!hasDefinitionUpdates && !hasStateUpdates) {
+      return errorResponse(400, 'No updates provided', auth.correlationId);
     }
 
-    // Personal State updates (Allowed for everyone)
-    const stateUpdates: string[] = [];
-    const stateValues: unknown[] = [];
-    const stateColumns = ['tried', 'last_tried_date', 'rating', 'notes', 'tags'];
-
-    if (body.tried !== undefined) { stateUpdates.push('tried'); stateValues.push(body.tried); }
-    if (body.lastTriedDate !== undefined) { stateUpdates.push('last_tried_date'); stateValues.push(body.lastTriedDate); }
-    if (body.rating !== undefined) { stateUpdates.push('rating'); stateValues.push(body.rating); }
-    if (body.notes !== undefined) { stateUpdates.push('notes'); stateValues.push(body.notes.trim()); }
-    if (body.tags !== undefined) { stateUpdates.push('tags'); stateValues.push(JSON.stringify(body.tags)); }
-
-    if (defUpdates.length === 0 && stateUpdates.length === 0) {
-      return errorResponse(400, 'No allowed updates provided', auth.correlationId);
+    // 1. Update Definition (if allowed and has updates)
+    if (canEditDefinition && hasDefinitionUpdates) {
+      await sql`
+        UPDATE menu_items 
+        SET 
+          name = COALESCE(${body.name?.trim() ?? null}, name),
+          category = COALESCE(${body.category?.trim() ?? null}, category),
+          price = COALESCE(${body.price ?? null}, price),
+          description = COALESCE(${body.description?.trim() ?? null}, description)
+        WHERE id = ${id}
+      `;
     }
 
-    await sql.transaction(async (tx) => {
-      // 1. Update Definition
-      if (defUpdates.length > 0) {
-         await tx`
-          UPDATE menu_items 
-          SET ${sql(defUpdates.map((u, i) => [u, defValues[i]]))}
-          WHERE id = ${id}
-        `;
-      }
+    // 2. Upsert Personal State (if has state updates)
+    if (hasStateUpdates) {
+      const updatedAt = now();
+      const triedValue = body.tried ?? null;
+      const lastTriedDateValue = body.lastTriedDate ?? null;
+      const ratingValue = body.rating ?? null;
+      const notesValue = body.notes?.trim() ?? null;
+      const tagsValue = body.tags ? JSON.stringify(body.tags) : null;
 
-      // 2. Upsert Personal State
-      if (stateUpdates.length > 0) {
-        // We need to check if row exists first or use upsert. 
-        // Postgres ON CONFLICT requires a constraint unique index.
-        // Primary key (user_id, menu_item_id) exists.
-        
-        // Construct SET clause for update part of upsert
-        // Excluded table usage
-        
-        // Dynamic construction for INSERT ... ON CONFLICT
-        // It's easier to just do explicit INSERT ... ON CONFLICT DO UPDATE
-        // But we need to handle partial updates. 
-        // If row doesn't exist, we need to provide all columns? No, separate table allows defaults.
-        // But we need to preserve existing values if we don't send them?
-        // Wait, if I send ONLY { rating: 5 }, and row doesn't exist, other fields (tried) will be default (false).
-        // This is correct behavior for a new interaction.
-        // BUT if row EXISTS, we should update only rating.
-        
-        // The safest way with the `neon` driver helper and dynamic columns is messy.
-        // Let's rely on standard SQL upsert with specific logic.
-        
-        // Actually, simplest is to check existence.
-        const existingState = await tx`SELECT 1 FROM user_menu_item_state WHERE user_id=${auth.user.id} AND menu_item_id=${id}`;
-        
-        if (existingState.length > 0) {
-            // Update
-             await tx`
-                UPDATE user_menu_item_state
-                SET ${sql(stateUpdates.map((u, i) => [u, stateValues[i]]))}
-                WHERE user_id=${auth.user.id} AND menu_item_id=${id}
-             `;
-        } else {
-            // Insert with defaults for missing fields
-            // We need to map incoming updates to a full insert object or use defaults.
-            // Map arrays to named checks
-            const insertObj: any = {
-                user_id: auth.user.id,
-                menu_item_id: id,
-                updated_at: now()
-            };
-            
-            if (body.tried !== undefined) insertObj.tried = body.tried;
-            if (body.lastTriedDate !== undefined) insertObj.last_tried_date = body.lastTriedDate;
-            if (body.rating !== undefined) insertObj.rating = body.rating;
-            if (body.notes !== undefined) insertObj.notes = body.notes;
-            if (body.tags !== undefined) insertObj.tags = JSON.stringify(body.tags);
+      // Use INSERT ... ON CONFLICT for upsert
+      await sql`
+        INSERT INTO user_menu_item_state (user_id, menu_item_id, tried, last_tried_date, rating, notes, tags, updated_at)
+        VALUES (
+          ${auth.user.id}, 
+          ${id}, 
+          COALESCE(${triedValue}, false),
+          ${lastTriedDateValue},
+          ${ratingValue},
+          ${notesValue},
+          COALESCE(${tagsValue}::jsonb, '[]'::jsonb),
+          ${updatedAt}
+        )
+        ON CONFLICT (user_id, menu_item_id) DO UPDATE SET
+          tried = COALESCE(${triedValue}, user_menu_item_state.tried),
+          last_tried_date = COALESCE(${lastTriedDateValue}, user_menu_item_state.last_tried_date),
+          rating = COALESCE(${ratingValue}, user_menu_item_state.rating),
+          notes = COALESCE(${notesValue}, user_menu_item_state.notes),
+          tags = COALESCE(${tagsValue}::jsonb, user_menu_item_state.tags),
+          updated_at = ${updatedAt}
+      `;
+    }
 
-            // Using helper to verify columns
-            const keys = Object.keys(insertObj);
-            const vals = Object.values(insertObj);
-            
-            await tx`INSERT INTO user_menu_item_state (${sql(keys)}) VALUES (${sql(vals)})`;
-        }
-      }
-    });
-
-    // Fetch updated
+    // Fetch updated item with personal state
     const items = await sql`
       SELECT 
         mi.id, mi.restaurant_id, mi.workspace_id, mi.name, mi.category, mi.price, mi.description, mi.created_at,
