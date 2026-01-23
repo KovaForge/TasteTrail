@@ -65,7 +65,7 @@ export function ImportPage() {
     });
 
     if (response.data) {
-      setImportId('temp-' + Date.now());
+      setImportId(response.data.id);
       setDraft({
         restaurantName: response.data.restaurant.name,
         cuisine: response.data.restaurant.cuisine,

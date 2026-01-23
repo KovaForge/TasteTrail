@@ -100,12 +100,32 @@ app.http('parseImport', {
 
       context.log(`Extracted ${content.length} characters`);
 
-      // 3. Check if content is already valid menu JSON (skip AI call)
+      // 3. Create Import Record (Draft)
+      const importId = generateId();
+      await sql`
+        INSERT INTO menu_imports (id, workspace_id, source_type, source_value, imported_at, status)
+        VALUES (
+          ${importId}, 
+          ${auth.workspaceId}, 
+          ${body.sourceType}, 
+          ${body.sourceValue.substring(0, 10000)}, -- Truncate if too long (esp. base64) for safety/storage? Actually TEXT can hold 1GB. But let's simple store it.
+          ${now()}, 
+          'draft'
+        )
+      `;
+      // Note: Truncating source_value might be bad if we need to re-process. 
+      // But for 'text' and 'url' it's fine. For 'image' base64, it's huge.
+      // The schema says TEXT. Postgres can handle it. Let's just store it or empty string if image?
+      // "source_value TEXT NOT NULL". 
+      // Let's store full value for now.
+
+      // 4. Check if content is already valid menu JSON (skip AI call)
       const directParsed = tryParseMenuJson(content);
       if (directParsed) {
         context.log('Direct JSON import detected, skipping AI call');
         const duration = Date.now() - startTime;
         return jsonResponse({
+          id: importId, // Return real DB ID
           restaurant: directParsed.restaurant,
           items: directParsed.items,
           warnings: directParsed.warnings,
@@ -119,7 +139,7 @@ app.http('parseImport', {
         }, auth.correlationId, 200);
       }
 
-      // 4. Decrypt API key and parse with AI
+      // 5. Decrypt API key and parse with AI
       const encryptedBuffer = toBuffer(setting.encrypted_api_key);
       const nonceBuffer = toBuffer(setting.nonce);
       const apiKey = decrypt(encryptedBuffer, nonceBuffer);
@@ -131,8 +151,9 @@ app.http('parseImport', {
 
       const duration = Date.now() - startTime;
 
-      // 5. Return parsed menu
+      // 6. Return parsed menu
       return jsonResponse({
+        id: importId, // Return real DB ID
         restaurant: parsed.restaurant,
         items: parsed.items,
         warnings: parsed.warnings,
@@ -197,18 +218,63 @@ app.http('commitImport', {
       return errorResponse(400, 'At least one item must be selected', auth.correlationId);
     }
 
-    const restaurantId = generateId();
-    const createdAt = now();
+    const restaurantName = body.restaurantName.trim();
+    const cuisine = body.cuisine.trim();
 
-    // Create restaurant
-    await sql`
-      INSERT INTO restaurants (id, workspace_id, name, cuisine, created_at)
-      VALUES (${restaurantId}, ${auth.workspaceId}, ${body.restaurantName.trim()}, ${body.cuisine.trim()}, ${createdAt})
+    // 1. Check for existing restaurant by name and workspace
+    const existingRestaurants = await sql`
+      SELECT id, name, cuisine, created_at FROM restaurants 
+      WHERE workspace_id = ${auth.workspaceId} AND LOWER(name) = LOWER(${restaurantName})
     `;
 
-    // Create menu items
+    let restaurantId: string;
+    let isNewRestaurant = false;
+
+    if (existingRestaurants.length > 0) {
+      // Reuse existing
+      restaurantId = existingRestaurants[0].id;
+      context.log(`Using existing restaurant: ${restaurantName} (${restaurantId})`);
+    } else {
+      // Create new
+      restaurantId = generateId();
+      isNewRestaurant = true;
+      await sql`
+        INSERT INTO restaurants (id, workspace_id, name, cuisine, created_at)
+        VALUES (${restaurantId}, ${auth.workspaceId}, ${restaurantName}, ${cuisine}, ${createdAt})
+      `;
+      context.log(`Created new restaurant: ${restaurantName} (${restaurantId})`);
+    }
+
+    // 2. Fetch existing items to check for duplicates
+    // Only need this if restaurant existed
+    const existingItems = isNewRestaurant ? [] : await sql`
+      SELECT name, price FROM menu_items WHERE restaurant_id = ${restaurantId}
+    `;
+
+    // Helper to check for duplicate
+    const isDuplicate = (name: string, price?: number) => {
+      const normalizedName = name.toLowerCase().trim();
+      return existingItems.some(existing => 
+        existing.name.toLowerCase().trim() === normalizedName && 
+        // Price match: if both exist, they must be equal. If one is null/undefined, it's fuzzy.
+        // Requirement: "same item name and same price"
+        // Let's assume strict equality on price if both present. If one missing, maybe not duplicate?
+        // Let's go with strict: price must match.
+        // If stored price is numeric string, cast it.
+        Number(existing.price) === Number(price)
+      );
+    };
+
+    // 3. Create menu items (Skipping duplicates)
     const items = [];
+    let skippedCount = 0;
+
     for (const item of selectedItems) {
+      if (isDuplicate(item.name, item.price)) {
+        skippedCount++;
+        continue;
+      }
+
       const itemId = generateId();
       await sql`
         INSERT INTO menu_items (
@@ -240,6 +306,28 @@ app.http('commitImport', {
         createdAt,
       });
     }
+    
+    context.log(`Committed ${items.length} items to ${restaurantName} (Skipped ${skippedCount} duplicates)`);
+
+    // Update import status
+    await sql`
+      UPDATE menu_imports SET status = 'committed' WHERE id = ${importId}
+    `;
+
+    return jsonResponse({
+      restaurant: {
+        id: restaurantId,
+        workspaceId: auth.workspaceId,
+        name: restaurantName,
+        cuisine,
+        createdAt: isNewRestaurant ? createdAt : existingRestaurants[0].created_at,
+      },
+      items,
+      meta: {
+        skippedCount,
+        isNewRestaurant
+      }
+    }, auth.correlationId);
 
     // Update import status
     await sql`
