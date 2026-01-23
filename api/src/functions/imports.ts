@@ -150,10 +150,10 @@ app.http('parseImport', {
       
       return errorResponse(
         500,
-        'Failed to parse menu',
+        `Failed to parse menu: ${error instanceof Error ? error.message : String(error)}`,
         auth.correlationId,
         {
-          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
           sourceType: body.sourceType,
         }
       );

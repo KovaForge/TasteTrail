@@ -63,7 +63,8 @@ Create `api/local.settings.json`:
   "Values": {
     "AzureWebJobsStorage": "",
     "FUNCTIONS_WORKER_RUNTIME": "node",
-    "DATABASE_URL": "postgres://your-neon-connection-string"
+    "DATABASE_URL": "postgres://your-neon-connection-string",
+    "ENCRYPTION_MASTER_KEY": "your-32-byte-base64-key"
   }
 }
 ```
@@ -105,6 +106,7 @@ Configure environment variables in Azure Portal:
 - `AAD_CLIENT_ID`: Your app registration client ID
 - `AAD_CLIENT_SECRET`: Your app registration client secret
 - `DATABASE_URL`: Your Neon PostgreSQL connection string
+- `ENCRYPTION_MASTER_KEY`: **Required**. A 32-byte base64 encoded key for encrypting API settings. Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 
 ## Project Structure
 
