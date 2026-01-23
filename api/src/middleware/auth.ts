@@ -21,7 +21,7 @@ export function getAuthUser(request: HttpRequest): AuthUser | null {
   const principalHeader = request.headers.get('x-ms-client-principal');
   
   if (!principalHeader) {
-    return null;
+    return getMockUser();
   }
 
   try {
@@ -36,8 +36,24 @@ export function getAuthUser(request: HttpRequest): AuthUser | null {
   } catch {
     return null;
   }
+
+  return null;
 }
 
+/**
+ * Helper to check for local dev mock user
+ * This is separate to avoid cluttering the main extraction logic
+ */
+function getMockUser(): AuthUser | null {
+  if (process.env.AZURE_FUNCTIONS_ENVIRONMENT === 'Development') {
+     return {
+       id: 'local-dev-user',
+       email: 'local@dev.com',
+       name: 'Local Developer'
+     };
+  }
+  return null;
+}
 /**
  * Generate or extract correlation ID
  */

@@ -40,7 +40,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      setUser(null);
+      
+      // Mock user for local development
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.log('Local dev detected, using mock user');
+        setUser({
+          id: 'local-dev-user',
+          email: 'local@dev.com',
+          name: 'Local Developer',
+        });
+      } else {
+        setUser(null);
+      }
     } finally {
       setIsLoading(false);
     }
