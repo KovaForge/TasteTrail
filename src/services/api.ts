@@ -223,7 +223,7 @@ export const api = {
 
   // AI Settings
   getAISettings: () => 
-    apiFetch<{ provider?: string; model?: string; hasKey: boolean; maskedKey?: string }>('/api/ai-settings'),
+    apiFetch<{ provider?: string; model?: string; hasKey: boolean; maskedKey?: string; error?: string }>('/api/ai-settings'),
   
   saveAISettings: (provider: string, apiKey: string, model: string) =>
     apiFetch<{ provider: string; model: string; maskedKey: string }>('/api/ai-settings', {
