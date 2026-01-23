@@ -61,8 +61,13 @@ function AuthenticatedRoutes() {
         </p>
         <a 
           href="/.auth/login/aad?post_login_redirect_uri=/"
+          onClick={(e) => {
+            console.log('Sign in clicked, navigating to:', e.currentTarget.href);
+            // Force navigation just in case
+            window.location.href = e.currentTarget.href;
+          }}
           className="btn btn-primary" 
-          style={{ minWidth: 200, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textDecoration: 'none' }}
+          style={{ minWidth: 200, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textDecoration: 'none', cursor: 'pointer' }}
         >
           <svg viewBox="0 0 24 24" fill="none" style={{ width: 20, height: 20 }}>
             <rect x="2" y="2" width="9" height="9" fill="#f25022" />
