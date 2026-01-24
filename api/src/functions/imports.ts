@@ -59,6 +59,7 @@ app.http('parseImport', {
       sourceType: 'text' | 'url' | 'image';
       sourceValue: string;
       restaurantHint?: string;
+      provider?: string;
     };
 
     if (!body.sourceType || !body.sourceValue) {
@@ -66,17 +67,25 @@ app.http('parseImport', {
     }
 
     try {
-      // 1. Fetch user's AI settings
-      const settings = await sql`
-        SELECT provider, model, encrypted_api_key, nonce
-        FROM user_ai_settings
-        WHERE user_id = ${auth.user.id}
-      `;
+      // 1. Fetch user's AI settings, filtered by selected provider if specified
+      const settings = body.provider
+        ? await sql`
+            SELECT provider, model, encrypted_api_key, nonce
+            FROM user_ai_settings
+            WHERE user_id = ${auth.user.id} AND provider = ${body.provider}
+          `
+        : await sql`
+            SELECT provider, model, encrypted_api_key, nonce
+            FROM user_ai_settings
+            WHERE user_id = ${auth.user.id}
+          `;
 
       if (settings.length === 0) {
         return errorResponse(
           400,
-          'AI provider not configured. Please add your API key in Settings.',
+          body.provider
+            ? `AI provider "${body.provider}" not configured. Please add your API key in Settings.`
+            : 'AI provider not configured. Please add your API key in Settings.',
           auth.correlationId
         );
       }

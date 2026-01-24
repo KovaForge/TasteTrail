@@ -20,6 +20,8 @@ export function ImportPage() {
   const [importId, setImportId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ImportDraft | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
 
   // Set API context
   useEffect(() => {
@@ -34,10 +36,6 @@ export function ImportPage() {
   const handleProcess = async () => {
     if (!sourceValue.trim()) return;
 
-    // Check if AI key is configured (unless it's just raw text, which we might support lightly or consistency blocks)
-    // Per requirements: "If no key is configured. URL and screenshot imports are blocked"
-    // "Text only imports may optionally still work without AI but default to blocked for consistency"
-    // So we check for all.
     const settingsResponse = await api.getAISettings();
     if (!settingsResponse.data?.hasOpenAi && !settingsResponse.data?.hasGemini) {
       addEntry({
@@ -48,9 +46,32 @@ export function ImportPage() {
       alert('You need to configure an AI Provider (OpenAI or Gemini) in Settings to import menus.');
       return;
     }
-    
+
+    // Determine the provider to use: respect user selection, or auto-detect if only one is available
+    let providerToUse = selectedProvider;
+    if (!providerToUse) {
+      if (settingsResponse.data.hasOpenAi && !settingsResponse.data.hasGemini) {
+        providerToUse = 'openai';
+      } else if (settingsResponse.data.hasGemini && !settingsResponse.data.hasOpenAi) {
+        providerToUse = 'gemini';
+      }
+      // If both are available and none selected, prompt via the UI (handled below)
+    }
+
+    // Update available providers for UI
+    const providers: string[] = [];
+    if (settingsResponse.data.hasOpenAi) providers.push('openai');
+    if (settingsResponse.data.hasGemini) providers.push('gemini');
+    setAvailableProviders(providers);
+
+    // If multiple providers are available and none selected, default to first and let user choose
+    if (providers.length > 1 && !providerToUse) {
+      setSelectedProvider(providers[0] || '');
+      return;
+    }
+
     setIsProcessing(true);
-    
+
     // For images, we need to ensure we send just the base64 data if it has a prefix
     let processedValue = sourceValue;
     if (sourceType === 'image' && sourceValue.includes('base64,')) {
@@ -62,6 +83,7 @@ export function ImportPage() {
     const response = await api.parseImport({
       sourceType,
       sourceValue: processedValue,
+      provider: providerToUse || undefined,
     });
 
     if (response.data) {
@@ -292,6 +314,21 @@ export function ImportPage() {
             </div>
           )}
         </div>
+
+        {availableProviders.length > 1 && (
+          <div className="form-group">
+            <label className="form-label">AI Provider</label>
+            <select
+              className="form-input form-select"
+              value={selectedProvider}
+              onChange={(e) => setSelectedProvider(e.target.value)}
+            >
+              {availableProviders.map(p => (
+                <option key={p} value={p}>{p === 'openai' ? 'OpenAI' : 'Gemini'}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {parseError && (
           <div className="p-sm rounded bg-error-subtle text-error" style={{ fontSize: 'var(--font-size-sm)', marginBottom: 'var(--space-sm)' }}>

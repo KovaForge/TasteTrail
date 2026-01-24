@@ -202,7 +202,7 @@ export const api = {
     apiFetch<import('../types').StatsResponse>(`/api/stats/cuisines?scope=${scope}&countBy=${countBy}`),
 
   // Imports
-  parseImport: (data: { sourceType: string; sourceValue: string; restaurantHint?: string }) =>
+  parseImport: (data: { sourceType: string; sourceValue: string; restaurantHint?: string; provider?: string }) =>
     apiFetch<{ 
       id: string;
       restaurant: any; 
