@@ -59,7 +59,7 @@ function AuthenticatedRoutes() {
           marginBottom: 'var(--space-xl)',
           maxWidth: 300,
         }}>
-          Track your favorite restaurant dishes and share with family
+          A mobile-first web app for tracking restaurant menu items, recording notes, analysing food preferences, and sharing collections with family members.
         </p>
         <button 
           onClick={() => {
