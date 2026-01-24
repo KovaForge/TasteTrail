@@ -1,5 +1,6 @@
 export * from './RestaurantsPage';
 export * from './RestaurantDetailPage';
+export * from './RestaurantEditPage';
 export * from './MenuItemDetailPage';
 export * from './SearchPage';
 export * from './StatisticsPage';

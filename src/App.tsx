@@ -4,6 +4,7 @@ import { AuthProvider, DebugProvider, useAuth } from './context';
 import {
   RestaurantsPage,
   RestaurantDetailPage,
+  RestaurantEditPage,
   MenuItemDetailPage,
   SearchPage,
   StatisticsPage,
@@ -86,6 +87,7 @@ function AuthenticatedRoutes() {
     <Routes>
       <Route path="/" element={<RestaurantsPage />} />
       <Route path="/restaurant/:id" element={<RestaurantDetailPage />} />
+      <Route path="/restaurant/:id/edit" element={<RestaurantEditPage />} />
       <Route path="/menu-item/:id" element={<MenuItemDetailPage />} />
       <Route path="/search" element={<SearchPage />} />
       <Route path="/statistics" element={<StatisticsPage />} />
