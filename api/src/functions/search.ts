@@ -32,43 +32,78 @@ app.http('search', {
       LIMIT 20
     `;
 
-    // Build menu items query
+    // Build menu items query with per-user state
     let menuItems;
-    if (tried === 'true') {
+    const minRatingVal = minRating ? parseInt(minRating) : 0;
+
+    if (tried === 'true' && minRatingVal > 0) {
       menuItems = await sql`
-        SELECT 
-          id, restaurant_id, workspace_id, name, category, price, description,
-          tried, last_tried_date, rating, notes, tags, created_at
-        FROM menu_items
-        WHERE workspace_id = ${auth.workspaceId}
-          AND LOWER(name) LIKE ${searchTerm}
-          AND tried = true
-          ${minRating ? sql`AND rating >= ${parseInt(minRating)}` : sql``}
-        ORDER BY name ASC
+        SELECT
+          mi.id, mi.restaurant_id, mi.workspace_id, mi.name, mi.category, mi.price, mi.description, mi.created_at,
+          COALESCE(us.tried, false) as tried, us.last_tried_date, us.rating, us.notes,
+          COALESCE(us.tags, '[]'::jsonb) as tags
+        FROM menu_items mi
+        LEFT JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
+        WHERE mi.workspace_id = ${auth.workspaceId}
+          AND LOWER(mi.name) LIKE ${searchTerm}
+          AND us.tried = true
+          AND us.rating >= ${minRatingVal}
+        ORDER BY mi.name ASC
+        LIMIT 50
+      `;
+    } else if (tried === 'true') {
+      menuItems = await sql`
+        SELECT
+          mi.id, mi.restaurant_id, mi.workspace_id, mi.name, mi.category, mi.price, mi.description, mi.created_at,
+          COALESCE(us.tried, false) as tried, us.last_tried_date, us.rating, us.notes,
+          COALESCE(us.tags, '[]'::jsonb) as tags
+        FROM menu_items mi
+        LEFT JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
+        WHERE mi.workspace_id = ${auth.workspaceId}
+          AND LOWER(mi.name) LIKE ${searchTerm}
+          AND us.tried = true
+        ORDER BY mi.name ASC
         LIMIT 50
       `;
     } else if (tried === 'false') {
       menuItems = await sql`
-        SELECT 
-          id, restaurant_id, workspace_id, name, category, price, description,
-          tried, last_tried_date, rating, notes, tags, created_at
-        FROM menu_items
-        WHERE workspace_id = ${auth.workspaceId}
-          AND LOWER(name) LIKE ${searchTerm}
-          AND tried = false
-        ORDER BY name ASC
+        SELECT
+          mi.id, mi.restaurant_id, mi.workspace_id, mi.name, mi.category, mi.price, mi.description, mi.created_at,
+          COALESCE(us.tried, false) as tried, us.last_tried_date, us.rating, us.notes,
+          COALESCE(us.tags, '[]'::jsonb) as tags
+        FROM menu_items mi
+        LEFT JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
+        WHERE mi.workspace_id = ${auth.workspaceId}
+          AND LOWER(mi.name) LIKE ${searchTerm}
+          AND (us.tried IS NULL OR us.tried = false)
+        ORDER BY mi.name ASC
+        LIMIT 50
+      `;
+    } else if (minRatingVal > 0) {
+      menuItems = await sql`
+        SELECT
+          mi.id, mi.restaurant_id, mi.workspace_id, mi.name, mi.category, mi.price, mi.description, mi.created_at,
+          COALESCE(us.tried, false) as tried, us.last_tried_date, us.rating, us.notes,
+          COALESCE(us.tags, '[]'::jsonb) as tags
+        FROM menu_items mi
+        LEFT JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
+        WHERE mi.workspace_id = ${auth.workspaceId}
+          AND LOWER(mi.name) LIKE ${searchTerm}
+          AND us.rating >= ${minRatingVal}
+        ORDER BY mi.name ASC
         LIMIT 50
       `;
     } else {
       menuItems = await sql`
-        SELECT 
-          id, restaurant_id, workspace_id, name, category, price, description,
-          tried, last_tried_date, rating, notes, tags, created_at
-        FROM menu_items
-        WHERE workspace_id = ${auth.workspaceId}
-          AND LOWER(name) LIKE ${searchTerm}
-          ${minRating ? sql`AND rating >= ${parseInt(minRating)}` : sql``}
-        ORDER BY name ASC
+        SELECT
+          mi.id, mi.restaurant_id, mi.workspace_id, mi.name, mi.category, mi.price, mi.description, mi.created_at,
+          COALESCE(us.tried, false) as tried, us.last_tried_date, us.rating, us.notes,
+          COALESCE(us.tags, '[]'::jsonb) as tags
+        FROM menu_items mi
+        LEFT JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
+        WHERE mi.workspace_id = ${auth.workspaceId}
+          AND LOWER(mi.name) LIKE ${searchTerm}
+        ORDER BY mi.name ASC
         LIMIT 50
       `;
     }
