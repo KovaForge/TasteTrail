@@ -184,7 +184,7 @@ app.http('updateMenuItem', {
 
     // Fetch existing item to check workspace ownership
     const existing = await sql`
-      SELECT workspace_id FROM menu_items WHERE id = ${id}
+      SELECT workspace_id, restaurant_id FROM menu_items WHERE id = ${id}
     `;
 
     if (existing.length === 0) {
@@ -192,19 +192,31 @@ app.http('updateMenuItem', {
     }
 
     const itemWorkspaceId = existing[0].workspace_id;
-    
+    const itemRestaurantId = existing[0].restaurant_id;
+
     // Check membership
     const membership = await sql`
-      SELECT role FROM workspace_members 
+      SELECT role FROM workspace_members
       WHERE user_id = ${auth.user.id} AND workspace_id = ${itemWorkspaceId}
     `;
-    
-    if (membership.length === 0) {
-       return errorResponse(403, 'No access to this workspace', auth.correlationId);
-    }
 
-    const role = membership[0].role;
-    const canEditDefinition = role === 'Owner' || role === 'Editor';
+    let canEditDefinition = false;
+
+    if (membership.length === 0) {
+      // Not a workspace member - check if user has shared access to this restaurant
+      const sharedAccess = await sql`
+        SELECT restaurant_id FROM shared_restaurants
+        WHERE restaurant_id = ${itemRestaurantId} AND user_id = ${auth.user.id}
+      `;
+      if (sharedAccess.length === 0) {
+        return errorResponse(403, 'No access to this workspace', auth.correlationId);
+      }
+      // Shared users can only update personal state, not item definitions
+      canEditDefinition = false;
+    } else {
+      const role = membership[0].role;
+      canEditDefinition = role === 'Owner' || role === 'Editor';
+    }
 
     // Check if there's anything to update
     const hasDefinitionUpdates = body.name !== undefined || body.category !== undefined || 
