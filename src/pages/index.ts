@@ -1,7 +1,8 @@
-export { RestaurantsPage } from './RestaurantsPage';
-export { RestaurantDetailPage } from './RestaurantDetailPage';
-export { MenuItemDetailPage } from './MenuItemDetailPage';
-export { SearchPage } from './SearchPage';
-export { StatisticsPage } from './StatisticsPage';
-export { ImportPage } from './ImportPage';
-export { SettingsPage } from './SettingsPage';
+export * from './RestaurantsPage';
+export * from './RestaurantDetailPage';
+export * from './MenuItemDetailPage';
+export * from './SearchPage';
+export * from './StatisticsPage';
+export * from './ImportPage';
+export * from './SettingsPage';
+export * from './ShareHandlerPage';

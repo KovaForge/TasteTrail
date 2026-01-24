@@ -79,6 +79,12 @@
 * Use database migrations for schema changes.
 * Provide a clear README with local run instructions and environment variables.
 
+## Development Workflow
+* Before any git commit & push, you must verify the build locally to prevent CI/CD failures.
+* Run `cmd /c npm run build` (or equivalent) to ensure `tsc` and `vite build` pass.
+* If the build fails, fix all errors before committing changes.
+* This applies to both frontend and backend changes.
+
 ## Out of scope
 * Any Azure service beyond Azure Static Web Apps plus integrated Azure Functions.
 * Any authentication that depends on Microsoft Entra.

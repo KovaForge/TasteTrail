@@ -44,6 +44,7 @@ export interface Restaurant {
   menuItemCount?: number;
   triedCount?: number;
   isShared: boolean;
+  isDirectShare?: boolean;
   ownerName?: string;
 }
 

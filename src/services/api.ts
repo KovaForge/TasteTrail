@@ -248,4 +248,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ provider })
     }),
+
+  // Sharing
+  createShareLink: (restaurantId: string) =>
+    apiFetch<{ token: string; restaurantName: string }>(`/api/restaurants/${restaurantId}/share`, {
+      method: 'POST',
+    }),
+  
+  claimShare: (token: string) =>
+    apiFetch<{ success: boolean; restaurantId: string; name: string; cuisine: string; message?: string }>('/api/shares/claim', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
 };

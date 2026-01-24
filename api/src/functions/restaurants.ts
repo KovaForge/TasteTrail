@@ -28,18 +28,21 @@ app.http('getRestaurants', {
         r.last_visited_date, 
         r.created_at,
         w.name as owner_name,
-        CASE WHEN ${auth.workspaceId}::uuid IS NULL OR r.workspace_id = ${auth.workspaceId}::uuid THEN false ELSE true END as is_shared,
+        CASE 
+          WHEN sr.user_id IS NOT NULL THEN true
+          WHEN ${auth.workspaceId}::uuid IS NULL OR r.workspace_id = ${auth.workspaceId}::uuid THEN false 
+          ELSE true 
+        END as is_shared,
+        CASE WHEN sr.user_id IS NOT NULL THEN true ELSE false END as is_direct_share,
         COUNT(mi.id) as menu_item_count,
         COUNT(CASE WHEN mi.tried = true THEN 1 END) as tried_count
       FROM restaurants r
       JOIN workspaces w ON r.workspace_id = w.id
-      JOIN workspace_members wm ON r.workspace_id = wm.workspace_id
+      LEFT JOIN workspace_members wm ON r.workspace_id = wm.workspace_id AND wm.user_id = ${auth.user.id}
+      LEFT JOIN shared_restaurants sr ON r.id = sr.restaurant_id AND sr.user_id = ${auth.user.id}
       LEFT JOIN menu_items mi ON r.id = mi.restaurant_id
-      WHERE wm.user_id = ${auth.user.id} 
-      -- We filter by user membership, not just the current active workspace ID
-      -- This effectively gets "My Restaurants" (where workspace_id matches current) 
-      -- AND "Shared Restaurants" (where workspace_id matches other memberships)
-      GROUP BY r.id, w.name, r.workspace_id
+      WHERE wm.user_id IS NOT NULL OR sr.user_id IS NOT NULL
+      GROUP BY r.id, w.name, r.workspace_id, sr.user_id
       ORDER BY r.name ASC
     `;
     
@@ -49,6 +52,7 @@ app.http('getRestaurants', {
         menuItemCount: Number(r.menu_item_count),
         triedCount: Number(r.tried_count),
         isShared: r.is_shared,
+        isDirectShare: r.is_direct_share,
         ownerName: r.owner_name,
       }))
     }, auth.correlationId);

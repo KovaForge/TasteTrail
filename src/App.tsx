@@ -9,6 +9,7 @@ import {
   StatisticsPage,
   ImportPage,
   SettingsPage,
+  ShareHandlerPage,
 } from './pages';
 
 function AuthenticatedRoutes() {
@@ -90,6 +91,7 @@ function AuthenticatedRoutes() {
       <Route path="/statistics" element={<StatisticsPage />} />
       <Route path="/import" element={<ImportPage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/share/:token" element={<ShareHandlerPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
