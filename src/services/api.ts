@@ -260,4 +260,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ token }),
     }),
+
+  getMyShares: () =>
+    apiFetch<{ shares: Array<{ token: string; restaurant_id: string; restaurant_name: string; created_at: string }> }>('/api/shares/mine'),
+
+  deleteShare: (token: string) =>
+    apiFetch<{ success: boolean }>(`/api/shares/${token}`, { method: 'DELETE' }),
 };

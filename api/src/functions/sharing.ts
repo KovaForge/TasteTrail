@@ -108,3 +108,42 @@ app.http('claimShare', {
     }, auth.correlationId);
   }, { requireWorkspace: false }),
 });
+
+// GET /api/shares/mine - List all share links created by the current user
+app.http('getMyShares', {
+  methods: ['GET'],
+  route: 'shares/mine',
+  handler: withAuth(async (request, context, auth) => {
+    const shares = await sql`
+      SELECT st.id as token, st.restaurant_id, r.name as restaurant_name, st.created_at
+      FROM share_tokens st
+      JOIN restaurants r ON st.restaurant_id = r.id
+      WHERE st.created_by = ${auth.user.id}
+      ORDER BY st.created_at DESC
+    `;
+
+    return jsonResponse({ shares }, auth.correlationId);
+  }, { requireWorkspace: false }),
+});
+
+// DELETE /api/shares/{token} - Revoke a share link
+app.http('deleteShare', {
+  methods: ['DELETE'],
+  route: 'shares/{token}',
+  handler: withAuth(async (request, context, auth) => {
+    const token = request.params.token;
+
+    // Verify ownership
+    const existing = await sql`
+      SELECT id FROM share_tokens WHERE id = ${token} AND created_by = ${auth.user.id}
+    `;
+
+    if (existing.length === 0) {
+      return errorResponse(404, 'Share link not found', auth.correlationId);
+    }
+
+    await sql`DELETE FROM share_tokens WHERE id = ${token}`;
+
+    return jsonResponse({ success: true }, auth.correlationId);
+  }, { requireWorkspace: false }),
+});

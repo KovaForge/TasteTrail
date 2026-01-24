@@ -32,9 +32,14 @@ export function SettingsPage() {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Load AI settings on mount
+  // Shared links state
+  const [sharedLinks, setSharedLinks] = useState<Array<{ token: string; restaurant_id: string; restaurant_name: string; created_at: string }>>([]);
+  const [isLoadingShares, setIsLoadingShares] = useState(false);
+
+  // Load AI settings and shared links on mount
   useEffect(() => {
     loadAISettings();
+    loadSharedLinks();
   }, []);
 
   async function loadAISettings() {
@@ -55,6 +60,21 @@ export function SettingsPage() {
     } catch (err: any) {
       console.error('Failed to load AI settings:', err);
     }
+  }
+
+  async function loadSharedLinks() {
+    setIsLoadingShares(true);
+    const response = await api.getMyShares();
+    if (response.data) {
+      setSharedLinks(response.data.shares);
+    }
+    setIsLoadingShares(false);
+  }
+
+  async function handleRevokeShare(token: string) {
+    if (!confirm('Are you sure you want to revoke this share link?')) return;
+    await api.deleteShare(token);
+    setSharedLinks(prev => prev.filter(s => s.token !== token));
   }
 
   async function handleSaveAISettings() {
@@ -307,6 +327,40 @@ export function SettingsPage() {
               </button>
             )}
           </>
+        )}
+      </div>
+
+      {/* Shared Links */}
+      <div className="card mb-md">
+        <h4 className="mb-md">Shared Links</h4>
+        {isLoadingShares ? (
+          <div className="skeleton" style={{ height: 60 }} />
+        ) : sharedLinks.length === 0 ? (
+          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+            No shared links yet. Share a restaurant to see links here.
+          </p>
+        ) : (
+          <div className="list">
+            {sharedLinks.map(link => (
+              <div key={link.token} className="flex items-center gap-sm" style={{ padding: 'var(--space-sm) 0' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-sm)' }}>
+                    {link.restaurant_name}
+                  </div>
+                  <div style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-xs)' }}>
+                    {new Date(link.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-ghost text-error"
+                  style={{ fontSize: 'var(--font-size-sm)', padding: 'var(--space-xs) var(--space-sm)' }}
+                  onClick={() => handleRevokeShare(link.token)}
+                >
+                  Revoke
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
