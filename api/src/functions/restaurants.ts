@@ -18,29 +18,30 @@ app.http('getRestaurants', {
     // We'll trust the auth.userId to find all memberships.
     
     const restaurants = await sql`
-      SELECT 
-        r.id, 
-        r.workspace_id, 
-        r.name, 
-        r.cuisine, 
-        r.address_suburb, 
-        r.notes, 
-        r.last_visited_date, 
+      SELECT
+        r.id,
+        r.workspace_id,
+        r.name,
+        r.cuisine,
+        r.address_suburb,
+        r.notes,
+        r.last_visited_date,
         r.created_at,
         w.name as owner_name,
-        CASE 
+        CASE
           WHEN sr.user_id IS NOT NULL THEN true
-          WHEN ${auth.workspaceId}::uuid IS NULL OR r.workspace_id = ${auth.workspaceId}::uuid THEN false 
-          ELSE true 
+          WHEN ${auth.workspaceId}::uuid IS NULL OR r.workspace_id = ${auth.workspaceId}::uuid THEN false
+          ELSE true
         END as is_shared,
         CASE WHEN sr.user_id IS NOT NULL THEN true ELSE false END as is_direct_share,
         COUNT(mi.id) as menu_item_count,
-        COUNT(CASE WHEN mi.tried = true THEN 1 END) as tried_count
+        COUNT(CASE WHEN us.tried = true THEN 1 END) as tried_count
       FROM restaurants r
       JOIN workspaces w ON r.workspace_id = w.id
       LEFT JOIN workspace_members wm ON r.workspace_id = wm.workspace_id AND wm.user_id = ${auth.user.id}
       LEFT JOIN shared_restaurants sr ON r.id = sr.restaurant_id AND sr.user_id = ${auth.user.id}
       LEFT JOIN menu_items mi ON r.id = mi.restaurant_id
+      LEFT JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
       WHERE wm.user_id IS NOT NULL OR sr.user_id IS NOT NULL
       GROUP BY r.id, w.name, r.workspace_id, sr.user_id
       ORDER BY r.name ASC

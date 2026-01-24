@@ -77,8 +77,21 @@ export function RestaurantDetailPage() {
       const response = await api.createShareLink(id);
       if (response.data) {
         const link = `${window.location.origin}/share/${response.data.token}`;
-        await navigator.clipboard.writeText(link);
-        alert(`Share link copied to clipboard!\n\n${link}`);
+        try {
+          await navigator.clipboard.writeText(link);
+          alert(`Share link copied to clipboard!\n\n${link}`);
+        } catch {
+          // Fallback for mobile Safari where clipboard API may fail
+          const textArea = document.createElement('textarea');
+          textArea.value = link;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-9999px';
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          alert(`Share link copied to clipboard!\n\n${link}`);
+        }
       }
     } catch (err) {
       console.error(err);
