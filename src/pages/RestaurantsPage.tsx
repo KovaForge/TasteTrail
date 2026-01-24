@@ -193,16 +193,6 @@ export function RestaurantsPage() {
         </div>
       )}
 
-      {/* FAB - Add Restaurant */}
-      <button
-        className="btn btn-primary btn-fab"
-        onClick={() => navigate('/restaurant/new')}
-        aria-label="Add restaurant"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 24, height: 24 }}>
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      </button>
     </Layout>
   );
 }
