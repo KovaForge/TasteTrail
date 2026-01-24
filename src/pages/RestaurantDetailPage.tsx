@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '../components';
 import { useAuth, useDebug } from '../context';
@@ -14,6 +14,7 @@ export function RestaurantDetailPage() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [menuSearch, setMenuSearch] = useState('');
 
   // Set API context
   useEffect(() => {
@@ -55,6 +56,16 @@ export function RestaurantDetailPage() {
     }
   }, []);
 
+  const filteredMenuItems = useMemo(() => {
+    if (!menuSearch.trim()) return menuItems;
+    const q = menuSearch.toLowerCase();
+    return menuItems.filter(item =>
+      item.name.toLowerCase().includes(q) ||
+      item.description?.toLowerCase().includes(q) ||
+      item.category?.toLowerCase().includes(q)
+    );
+  }, [menuItems, menuSearch]);
+
   if (isLoading) {
     return (
       <Layout title="Loading..." showBack onBack={() => navigate('/')}>
@@ -73,29 +84,40 @@ export function RestaurantDetailPage() {
 
   const handleShare = async () => {
     if (!id) return;
+    
+    // 1. Generate Link
+    let link = '';
     try {
       const response = await api.createShareLink(id);
       if (response.data) {
-        const link = `${window.location.origin}/share/${response.data.token}`;
-        try {
-          await navigator.clipboard.writeText(link);
-          alert(`Share link copied to clipboard!\n\n${link}`);
-        } catch {
-          // Fallback for mobile Safari where clipboard API may fail
-          const textArea = document.createElement('textarea');
-          textArea.value = link;
-          textArea.style.position = 'fixed';
-          textArea.style.left = '-9999px';
-          document.body.appendChild(textArea);
-          textArea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textArea);
-          alert(`Share link copied to clipboard!\n\n${link}`);
-        }
+        link = `${window.location.origin}/share/${response.data.token}`;
+      } else {
+        throw new Error('No data received');
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to generate share link');
+      alert('Failed to generate share link. Please try again.');
+      return;
+    }
+
+    // 2. Share (Native -> Clipboard -> Manual)
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: restaurant?.name || 'TasteTrail Restaurant',
+          text: `Check out ${restaurant?.name} on TasteTrail!`,
+          url: link,
+        });
+      } else {
+        await navigator.clipboard.writeText(link);
+        alert(`Share link copied to clipboard!\n\n${link}`);
+      }
+    } catch (err) {
+      console.warn('Share failed:', err);
+      // If user cancelled, do nothing. If error, show fallback.
+      if ((err as Error).name !== 'AbortError') {
+        prompt('Here is the share link (copy it manually):', link);
+      }
     }
   };
 
@@ -186,13 +208,29 @@ export function RestaurantDetailPage() {
       {/* Menu Items Section */}
       <div className="flex justify-between items-center mb-md">
         <h3>Menu Items ({menuItems.length})</h3>
-        <button 
+        <button
           className="btn btn-secondary"
           onClick={() => navigate(`/import?restaurantId=${id}`)}
         >
           Import Items
         </button>
       </div>
+
+      {menuItems.length > 3 && (
+        <div className="search-bar mb-md">
+          <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="search"
+            className="form-input search-input"
+            placeholder="Search menu items..."
+            value={menuSearch}
+            onChange={(e) => setMenuSearch(e.target.value)}
+          />
+        </div>
+      )}
 
       {menuItems.length === 0 ? (
         <div className="empty-state">
@@ -211,7 +249,7 @@ export function RestaurantDetailPage() {
         </div>
       ) : (
         <div className="list">
-          {menuItems.map((item) => (
+          {filteredMenuItems.map((item) => (
             <div key={item.id} className="card">
               <div className="menu-item-card">
                 {/* Tried Toggle */}
