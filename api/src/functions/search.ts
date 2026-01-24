@@ -94,12 +94,13 @@ app.http('getCuisineStats', {
 
     if (countBy === 'restaurants') {
       if (scope === 'tried') {
-        // Restaurants with at least one tried item
+        // Restaurants with at least one tried item (per-user state)
         rows = await sql`
           SELECT r.cuisine, COUNT(DISTINCT r.id) as count
           FROM restaurants r
           INNER JOIN menu_items mi ON r.id = mi.restaurant_id
-          WHERE r.workspace_id = ${auth.workspaceId} AND mi.tried = true
+          INNER JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
+          WHERE r.workspace_id = ${auth.workspaceId} AND us.tried = true
           GROUP BY r.cuisine
           ORDER BY count DESC
         `;
@@ -120,7 +121,8 @@ app.http('getCuisineStats', {
           SELECT r.cuisine, COUNT(mi.id) as count
           FROM menu_items mi
           INNER JOIN restaurants r ON mi.restaurant_id = r.id
-          WHERE mi.workspace_id = ${auth.workspaceId} AND mi.tried = true
+          INNER JOIN user_menu_item_state us ON mi.id = us.menu_item_id AND us.user_id = ${auth.user.id}
+          WHERE mi.workspace_id = ${auth.workspaceId} AND us.tried = true
           GROUP BY r.cuisine
           ORDER BY count DESC
         `;
