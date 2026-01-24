@@ -188,9 +188,9 @@ export function RestaurantDetailPage() {
         <h3>Menu Items ({menuItems.length})</h3>
         <button 
           className="btn btn-secondary"
-          onClick={() => navigate(`/restaurant/${id}/menu-item/new`)}
+          onClick={() => navigate(`/import?restaurantId=${id}`)}
         >
-          Add Item
+          Import Items
         </button>
       </div>
 

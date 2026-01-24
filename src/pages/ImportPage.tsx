@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from '../components';
 import { useAuth, useDebug } from '../context';
 import { api, setApiContext } from '../services';
@@ -10,6 +10,8 @@ type ImportStep = 'select' | 'input' | 'review';
 
 export function ImportPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const restaurantIdParam = searchParams.get('restaurantId');
   const { currentWorkspace, user } = useAuth();
   const { addEntry } = useDebug();
   
@@ -103,9 +105,19 @@ export function ImportPage() {
         const restResponse = await api.getRestaurants(currentWorkspace.id);
         if (restResponse.data) {
           setExistingRestaurants(restResponse.data.restaurants);
+          // Pre-select restaurant if restaurantId was passed via query param
+          if (restaurantIdParam) {
+            const match = restResponse.data.restaurants.find(r => r.id === restaurantIdParam);
+            if (match) {
+              setSelectedRestaurantId(match.id);
+              setDraft(prev => prev ? { ...prev, restaurantName: match.name, cuisine: match.cuisine } : prev);
+            }
+          }
         }
       }
-      setSelectedRestaurantId('');
+      if (!restaurantIdParam) {
+        setSelectedRestaurantId('');
+      }
       setStep('review');
     } else if (response.error) {
       const detail = (response.error.details?.message as string) || response.error.message;
