@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components';
 import { useAuth, useDebug } from '../context';
 import { api, setApiContext } from '../services';
-import type { ImportSourceType, ImportDraft } from '../types';
+import type { ImportSourceType, ImportDraft, Restaurant } from '../types';
 import { CUISINES } from '../types';
 
 type ImportStep = 'select' | 'input' | 'review';
@@ -22,6 +22,8 @@ export function ImportPage() {
   const [parseError, setParseError] = useState<string | null>(null);
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>('');
+  const [existingRestaurants, setExistingRestaurants] = useState<Restaurant[]>([]);
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState<string>('');
 
   // Set API context
   useEffect(() => {
@@ -96,6 +98,14 @@ export function ImportPage() {
           selected: true,
         })),
       });
+      // Fetch existing restaurants for the selector
+      if (currentWorkspace?.id) {
+        const restResponse = await api.getRestaurants(currentWorkspace.id);
+        if (restResponse.data) {
+          setExistingRestaurants(restResponse.data.restaurants);
+        }
+      }
+      setSelectedRestaurantId('');
       setStep('review');
     } else if (response.error) {
       const detail = (response.error.details?.message as string) || response.error.message;
@@ -365,27 +375,60 @@ export function ImportPage() {
       >
         {/* Restaurant Info */}
         <div className="card mb-md">
-          <div className="form-group">
-            <label className="form-label">Restaurant Name</label>
-            <input
-              type="text"
-              className="form-input"
-              value={draft.restaurantName}
-              onChange={(e) => handleUpdateDraft('restaurantName', e.target.value)}
-            />
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Cuisine</label>
-            <select
-              className="form-input form-select"
-              value={draft.cuisine}
-              onChange={(e) => handleUpdateDraft('cuisine', e.target.value)}
-            >
-              {CUISINES.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
+          {existingRestaurants.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Restaurant</label>
+              <select
+                className="form-input form-select"
+                value={selectedRestaurantId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setSelectedRestaurantId(id);
+                  if (id) {
+                    const existing = existingRestaurants.find(r => r.id === id);
+                    if (existing) {
+                      setDraft({ ...draft, restaurantName: existing.name, cuisine: existing.cuisine });
+                    }
+                  }
+                }}
+              >
+                <option value="">-- Create New Restaurant --</option>
+                {existingRestaurants.map(r => (
+                  <option key={r.id} value={r.id}>{r.name} ({r.cuisine})</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {!selectedRestaurantId && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Restaurant Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={draft.restaurantName}
+                  onChange={(e) => handleUpdateDraft('restaurantName', e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Cuisine</label>
+                <select
+                  className="form-input form-select"
+                  value={draft.cuisine}
+                  onChange={(e) => handleUpdateDraft('cuisine', e.target.value)}
+                >
+                  {CUISINES.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+          {selectedRestaurantId && (
+            <div style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+              Items will be added to the existing restaurant.
+            </div>
+          )}
         </div>
 
         {/* Menu Items */}
