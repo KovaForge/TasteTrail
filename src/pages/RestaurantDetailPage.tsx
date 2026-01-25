@@ -15,6 +15,7 @@ export function RestaurantDetailPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [menuSearch, setMenuSearch] = useState('');
+  const [menuSearchTitleOnly, setMenuSearchTitleOnly] = useState(false);
 
   // Set API context
   useEffect(() => {
@@ -59,12 +60,15 @@ export function RestaurantDetailPage() {
   const filteredMenuItems = useMemo(() => {
     if (!menuSearch.trim()) return menuItems;
     const q = menuSearch.toLowerCase();
+    if (menuSearchTitleOnly) {
+      return menuItems.filter(item => item.name.toLowerCase().includes(q));
+    }
     return menuItems.filter(item =>
       item.name.toLowerCase().includes(q) ||
       item.description?.toLowerCase().includes(q) ||
       item.category?.toLowerCase().includes(q)
     );
-  }, [menuItems, menuSearch]);
+  }, [menuItems, menuSearch, menuSearchTitleOnly]);
 
   if (isLoading) {
     return (
@@ -217,19 +221,39 @@ export function RestaurantDetailPage() {
       </div>
 
       {menuItems.length > 3 && (
-        <div className="search-bar mb-md">
-          <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="search"
-            className="form-input search-input"
-            placeholder="Search menu items..."
-            value={menuSearch}
-            onChange={(e) => setMenuSearch(e.target.value)}
-          />
-        </div>
+        <>
+          <div className="search-bar mb-sm">
+            <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="search"
+              className="form-input search-input"
+              placeholder="Search menu items..."
+              value={menuSearch}
+              onChange={(e) => setMenuSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-sm mb-md" style={{ justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              className={`toggle-tried ${menuSearchTitleOnly ? 'tried' : ''}`}
+              onClick={() => setMenuSearchTitleOnly(prev => !prev)}
+              aria-label="Search titles only"
+              aria-pressed={menuSearchTitleOnly}
+              title="Search titles only"
+              style={{ width: 32, height: 32 }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </button>
+            <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+              Title only
+            </span>
+          </div>
+        </>
       )}
 
       {menuItems.length === 0 ? (
