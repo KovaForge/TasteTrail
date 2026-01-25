@@ -101,7 +101,7 @@ app.http('createMenuItem', {
       )
     `;
 
-    }
+
     
     // 3. Insert History (if tried)
     if (body.tried) {
