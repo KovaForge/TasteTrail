@@ -84,7 +84,7 @@ export interface MenuItemFormData {
 }
 
 // Import Types
-export type ImportSourceType = 'text' | 'url' | 'image';
+export type ImportSourceType = 'text' | 'url' | 'image' | 'json';
 export type ImportStatus = 'draft' | 'committed';
 
 export interface MenuImport {

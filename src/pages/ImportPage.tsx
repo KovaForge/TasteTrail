@@ -8,6 +8,99 @@ import { CUISINES } from '../types';
 
 type ImportStep = 'select' | 'input' | 'review';
 
+const JSON_TEMPLATE = {
+  "restaurant": {
+    "name": "Pizzeria Tiramisu",
+    "cuisine": "Italian",
+    "addressSuburb": "Melbourne CBD",
+    "notes": "Wood-fired pizza, dine-in and takeaway"
+  },
+  "items": [
+    {
+      "name": "Margherita",
+      "category": "Pizza",
+      "price": 18.50,
+      "description": "San Marzano tomato, fior di latte, fresh basil",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Pepperoni",
+      "category": "Pizza",
+      "price": 22.00,
+      "description": "Tomato base, mozzarella, spicy pepperoni",
+      "tags": [],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Quattro Formaggi",
+      "category": "Pizza",
+      "price": 24.00,
+      "description": "Mozzarella, gorgonzola, parmesan, provolone",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Bruschetta",
+      "category": "Entree",
+      "price": 14.00,
+      "description": "Toasted sourdough, diced tomato, garlic, basil, olive oil",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Arancini",
+      "category": "Entree",
+      "price": 12.00,
+      "description": "Fried risotto balls with mozzarella, served with napoli sauce",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Spaghetti Bolognese",
+      "category": "Pasta",
+      "price": 22.00,
+      "description": "Slow-cooked beef ragu, parmesan",
+      "tags": [],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Penne Arrabiata",
+      "category": "Pasta",
+      "price": 19.00,
+      "description": "Spicy tomato sauce, chilli, garlic, fresh parsley",
+      "tags": ["vegetarian", "spicy"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Tiramisu",
+      "category": "Dessert",
+      "price": 14.00,
+      "description": "Classic Italian dessert with mascarpone, espresso, cocoa",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    },
+    {
+      "name": "Panna Cotta",
+      "category": "Dessert",
+      "price": 12.00,
+      "description": "Vanilla bean panna cotta with berry coulis",
+      "tags": ["vegetarian"],
+      "tried": false,
+      "notes": ""
+    }
+  ],
+  "warnings": []
+};
+
 export function ImportPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -85,7 +178,7 @@ export function ImportPage() {
     setParseError(null);
 
     const response = await api.parseImport({
-      sourceType,
+      sourceType: sourceType === 'json' ? 'text' : sourceType,
       sourceValue: processedValue,
       provider: providerToUse || undefined,
     });
@@ -176,6 +269,43 @@ export function ImportPage() {
         </p>
 
         <div className="list">
+          <div className="card" style={{ display: 'flex', alignItems: 'center', padding: 0, overflow: 'hidden', cursor: 'pointer' }} onClick={() => handleSourceSelect('json')}>
+             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 'var(--space-md)', padding: 'var(--space-md)' }}>
+              <div style={{ 
+                width: 48, 
+                height: 48, 
+                borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" style={{ width: 24, height: 24 }}>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M10 12a2 2 0 1 0 4 0 2 2 0 0 0-4 0" />
+                  <path d="M10 16c0-2 4-2 4 0" />
+                </svg>
+              </div>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <div style={{ fontWeight: 'var(--font-weight-semibold)' }}>Paste JSON string</div>
+                <div style={{ color: 'var(--color-primary)', fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+                  (Recommended)
+                </div>
+              </div>
+            </div>
+             <button 
+                className="btn btn-secondary"
+                style={{ margin: 'var(--space-md)', pointerEvents: 'auto' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(JSON.stringify(JSON_TEMPLATE, null, 2));
+                  alert('JSON template copied to clipboard!');
+                }}
+              >
+                Copy Template
+              </button>
+          </div>
+
           <button 
             className="card card-interactive"
             onClick={() => handleSourceSelect('text')}
@@ -228,7 +358,7 @@ export function ImportPage() {
               <div style={{ flex: 1, textAlign: 'left' }}>
                 <div style={{ fontWeight: 'var(--font-weight-semibold)' }}>Website URL</div>
                 <div style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                  Import from a restaurant website
+                  Import from a restaurant website <span style={{ opacity: 0.7 }}>(experimental)</span>
                 </div>
               </div>
             </div>
@@ -257,7 +387,7 @@ export function ImportPage() {
               <div style={{ flex: 1, textAlign: 'left' }}>
                 <div style={{ fontWeight: 'var(--font-weight-semibold)' }}>Photo / Screenshot</div>
                 <div style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                  Scan a menu image
+                  Scan a menu image <span style={{ opacity: 0.7 }}>(experimental)</span>
                 </div>
               </div>
             </div>
@@ -271,15 +401,35 @@ export function ImportPage() {
   if (step === 'input') {
     return (
       <Layout 
-        title={sourceType === 'text' ? 'Paste Menu' : sourceType === 'url' ? 'Enter URL' : 'Upload Image'}
+        title={sourceType === 'text' ? 'Paste Menu' : sourceType === 'url' ? 'Enter URL' : sourceType === 'json' ? 'Paste JSON' : 'Upload Image'}
         showBack
         onBack={() => setStep('select')}
       >
         <div className="form-group">
-          {sourceType === 'text' && (
+          {sourceType === 'json' && (
+             <div className="card mb-md text-sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                <p className="mb-sm"><strong>How to convert a restaurant menu into JSON using AI:</strong></p>
+                <ol className="pl-lg mb-md space-y-sm">
+                  <li>Open <strong>ChatGPT</strong> or <strong>Gemini</strong>.</li>
+                  <li>Copy the JSON template (using the button on previous screen) and keep it ready.</li>
+                  <li>Go to the restaurant menu (website, photo, or PDF).</li>
+                  <li>Copy the menu text (or upload image/PDF to AI).</li>
+                  <li>Paste the menu content into the AI.</li>
+                  <li>After pasting, paste the JSON template and say:
+                    <div className="p-sm bg-bg-primary rounded border border-border mt-xs mb-xs italic">
+                      “Transform the menu content above into the provided JSON template. Use only the information in the menu. Do not invent items or prices. If a value is unclear set it to null. Preserve item names exactly as written. Return JSON only with no explanation.”
+                    </div>
+                  </li>
+                  <li>Review the generated JSON and fix any errors.</li>
+                  <li><strong>Paste the final JSON output below and press Process Menu.</strong></li>
+                </ol>
+             </div>
+          )}
+
+          {(sourceType === 'text' || sourceType === 'json') && (
             <textarea
               className="form-input"
-              placeholder="Paste menu text here...&#10;&#10;Example:&#10;Margherita Pizza - $14.99&#10;Classic tomato and mozzarella"
+              placeholder={sourceType === 'json' ? 'Paste the JSON output from AI here...' : "Paste menu text here...\n\nExample:\nMargherita Pizza - $14.99\nClassic tomato and mozzarella"}
               value={sourceValue}
               onChange={(e) => setSourceValue(e.target.value)}
               rows={10}
