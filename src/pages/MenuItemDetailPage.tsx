@@ -144,7 +144,7 @@ export function MenuItemDetailPage() {
           <div className="mt-lg text-left border-t border-border pt-md">
             <div className="text-sm font-semibold mb-sm text-text-secondary">History</div>
             <div className="space-y-xs">
-              {item.history.map((h, i) => (
+              {item.history.map((h) => (
                 <div key={h.id} className="flex justify-between text-sm">
                    <span>{new Date(h.triedDate).toLocaleDateString()} {new Date(h.triedDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                    {h.notes && <span className="text-text-tertiary italic">- {h.notes}</span>}
