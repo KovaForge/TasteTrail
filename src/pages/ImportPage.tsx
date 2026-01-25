@@ -101,6 +101,13 @@ const JSON_TEMPLATE = {
   "warnings": []
 };
 
+const PROMPT_INSTRUCTIONS = `Transform the menu content above into the provided JSON template.
+Use only the information in the menu.
+Do not invent items or prices.
+If a value is unclear set it to null.
+Preserve item names exactly as written.
+Return JSON only with no explanation.`;
+
 export function ImportPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -408,20 +415,36 @@ export function ImportPage() {
         <div className="form-group">
           {sourceType === 'json' && (
              <div className="card mb-md text-sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                <p className="mb-sm"><strong>How to convert a restaurant menu into JSON using AI:</strong></p>
+                <p className="mb-sm"><strong>How to convert a restaurant menu into JSON using AI</strong></p>
                 <ol className="pl-lg mb-md space-y-sm">
                   <li>Open <strong>ChatGPT</strong> or <strong>Gemini</strong>.</li>
-                  <li>Copy the JSON template (using the button on previous screen) and keep it ready.</li>
-                  <li>Go to the restaurant menu (website, photo, or PDF).</li>
-                  <li>Copy the menu text (or upload image/PDF to AI).</li>
-                  <li>Paste the menu content into the AI.</li>
-                  <li>After pasting, paste the JSON template and say:
-                    <div className="p-sm bg-bg-primary rounded border border-border mt-xs mb-xs italic">
-                      “Transform the menu content above into the provided JSON template. Use only the information in the menu. Do not invent items or prices. If a value is unclear set it to null. Preserve item names exactly as written. Return JSON only with no explanation.”
+                  <li>Copy the JSON template you want to use.</li>
+                  <li>
+                    Go to the restaurant menu.<br/>
+                    <span style={{ opacity: 0.8 }}>This can be a website, screenshot, photo, or PDF.</span>
+                  </li>
+                  <li>
+                    Copy the menu text.<br/>
+                    <span style={{ opacity: 0.8 }}>If it is an image or PDF, upload it to the AI instead.</span>
+                  </li>
+                  <li>Paste the menu content into ChatGPT or Gemini.</li>
+                  <li>Paste the JSON template and then give this exact instruction:
+                    <div className="p-sm bg-bg-primary rounded border border-border mt-xs mb-xs italic relative">
+                      “{PROMPT_INSTRUCTIONS}”
+                      <button 
+                        className="btn btn-xs btn-secondary absolute top-xs right-xs"
+                        onClick={() => {
+                          navigator.clipboard.writeText(PROMPT_INSTRUCTIONS);
+                          alert('Instructions copied to clipboard!');
+                        }}
+                        title="Copy instructions"
+                      >
+                        Copy Instructions
+                      </button>
                     </div>
                   </li>
-                  <li>Review the generated JSON and fix any errors.</li>
-                  <li><strong>Paste the final JSON output below and press Process Menu.</strong></li>
+                  <li>Review the generated JSON and correct anything that looks wrong.</li>
+                  <li><strong>Save the final JSON output.</strong></li>
                 </ol>
              </div>
           )}
