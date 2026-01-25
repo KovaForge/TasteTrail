@@ -187,6 +187,23 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ tried, lastTriedDate: tried ? new Date().toISOString() : null }),
     }),
+  tryMenuItem: (id: string, notes?: string, date?: string) =>
+    apiFetch<{ success: true; history: any }>(`/api/menu-items/${id}/try`, {
+      method: 'POST',
+      body: JSON.stringify({ notes, date }),
+    }),
+  getTriedHistory: (id: string) =>
+    apiFetch<{ history: Array<{ id: string; tried_date: string; notes: string | null; created_at: string }> }>(
+      `/api/menu-items/${id}/tried-history`
+    ),
+  addTriedHistory: (id: string, notes?: string) =>
+    apiFetch<{ id: string; triedDate: string; notes: string | null }>(
+      `/api/menu-items/${id}/tried-history`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ notes }),
+      }
+    ),
 
   // Search
   search: (filters: import('../types').SearchFilters) =>

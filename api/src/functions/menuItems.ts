@@ -101,19 +101,18 @@ app.http('createMenuItem', {
       )
     `;
 
-    // 2. Insert Personal State (if any)
-    if (body.tried || body.rating || body.notes || (body.tags && body.tags.length > 0)) {
-      await sql`
-        INSERT INTO user_menu_item_state (
-          user_id, menu_item_id, tried, last_tried_date, rating, notes, tags
+    }
+    
+    // 3. Insert History (if tried)
+    if (body.tried) {
+       await sql`
+        INSERT INTO menu_item_tried_history (
+          user_id, menu_item_id, tried_date, notes
         ) VALUES (
           ${auth.user.id},
           ${id},
-          ${body.tried || false},
-          ${body.tried ? createdAt : null},
-          ${body.rating || null},
-          ${body.notes?.trim() || null},
-          ${JSON.stringify(body.tags || [])}
+          ${createdAt},
+          ${body.notes?.trim() || null}
         )
       `;
     }
@@ -127,12 +126,50 @@ app.http('createMenuItem', {
       price: body.price || null,
       description: body.description?.trim() || null,
       tried: body.tried || false,
-      lastTriedDate: body.tried ? createdAt : null,
-      rating: body.rating || null,
-      notes: body.notes?.trim() || null,
       tags: body.tags || [],
+      history: body.tried ? [{ id: generateId(), triedDate: createdAt, notes: body.notes?.trim() || null }] : [],
       createdAt,
     }, auth.correlationId, 201);
+  }),
+});
+
+// POST /api/menu-items/{id}/try - Record that an item was tried again
+app.http('tryMenuItem', {
+  methods: ['POST'],
+  route: 'menu-items/{id}/try',
+  handler: withAuth(async (request, context, auth) => {
+    const id = request.params.id;
+    const body = await request.json() as { notes?: string; date?: string };
+    
+    // Check if item exists
+    const existing = await sql`SELECT id FROM menu_items WHERE id = ${id}`;
+    if (existing.length === 0) {
+      return errorResponse(404, 'Menu item not found', auth.correlationId);
+    }
+
+    const triedDate = body.date || now();
+    const historyId = generateId();
+
+    // 1. Insert history record
+    await sql`
+      INSERT INTO menu_item_tried_history (id, user_id, menu_item_id, tried_date, notes)
+      VALUES (${historyId}, ${auth.user.id}, ${id}, ${triedDate}, ${body.notes?.trim() || null})
+    `;
+
+    // 2. Update user state (last_tried_date and tried=true)
+    await sql`
+      INSERT INTO user_menu_item_state (user_id, menu_item_id, tried, last_tried_date, updated_at)
+      VALUES (${auth.user.id}, ${id}, true, ${triedDate}, ${now()})
+      ON CONFLICT (user_id, menu_item_id) DO UPDATE SET
+        tried = true,
+        last_tried_date = ${triedDate},
+        updated_at = ${now()}
+    `;
+
+    return jsonResponse({ 
+      success: true,
+      history: { id: historyId, triedDate, notes: body.notes?.trim() || null }
+    }, auth.correlationId);
   }),
 });
 
@@ -160,7 +197,24 @@ app.http('getMenuItem', {
       return errorResponse(404, 'Menu item not found', auth.correlationId);
     }
 
-    return jsonResponse(items[0], auth.correlationId);
+    const item = items[0];
+
+    // Fetch history
+    const history = await sql`
+      SELECT id, tried_date, notes 
+      FROM menu_item_tried_history
+      WHERE user_id = ${auth.user.id} AND menu_item_id = ${id}
+      ORDER BY tried_date DESC
+    `;
+
+    return jsonResponse({
+      ...item,
+      history: history.map(h => ({
+        id: h.id,
+        triedDate: h.tried_date,
+        notes: h.notes
+      }))
+    }, auth.correlationId);
   }),
 });
 
@@ -254,8 +308,8 @@ app.http('updateMenuItem', {
       await sql`
         INSERT INTO user_menu_item_state (user_id, menu_item_id, tried, last_tried_date, rating, notes, tags, updated_at)
         VALUES (
-          ${auth.user.id}, 
-          ${id}, 
+          ${auth.user.id},
+          ${id},
           COALESCE(${triedValue}, false),
           ${lastTriedDateValue},
           ${ratingValue},
@@ -271,6 +325,15 @@ app.http('updateMenuItem', {
           tags = COALESCE(${tagsValue}::jsonb, user_menu_item_state.tags),
           updated_at = ${updatedAt}
       `;
+
+      // Record tried history when marking as tried
+      if (body.tried === true) {
+        const historyId = generateId();
+        await sql`
+          INSERT INTO menu_item_tried_history (id, user_id, menu_item_id, tried_date, created_at)
+          VALUES (${historyId}, ${auth.user.id}, ${id}, ${updatedAt}, ${updatedAt})
+        `;
+      }
     }
 
     // Fetch updated item with personal state
@@ -314,5 +377,92 @@ app.http('deleteMenuItem', {
     await sql`DELETE FROM menu_items WHERE id = ${id}`;
 
     return jsonResponse({ success: true }, auth.correlationId);
+  }),
+});
+
+// GET /api/menu-items/{id}/tried-history - Get tried history for a menu item
+app.http('getTriedHistory', {
+  methods: ['GET'],
+  route: 'menu-items/{id}/tried-history',
+  handler: withAuth(async (request, context, auth) => {
+    const id = request.params.id;
+
+    // Verify menu item exists
+    const items = await sql`SELECT id FROM menu_items WHERE id = ${id}`;
+    if (items.length === 0) {
+      return errorResponse(404, 'Menu item not found', auth.correlationId);
+    }
+
+    // Get history for this user and menu item
+    const history = await sql`
+      SELECT id, tried_date, notes, created_at
+      FROM menu_item_tried_history
+      WHERE user_id = ${auth.user.id} AND menu_item_id = ${id}
+      ORDER BY tried_date DESC
+    `;
+
+    return jsonResponse({ history }, auth.correlationId);
+  }),
+});
+
+// POST /api/menu-items/{id}/tried-history - Record a new tried date (for "Retried" action)
+app.http('addTriedHistory', {
+  methods: ['POST'],
+  route: 'menu-items/{id}/tried-history',
+  handler: withAuth(async (request, context, auth) => {
+    const id = request.params.id;
+    const body = await request.json() as { notes?: string };
+
+    // Verify menu item exists and get workspace/restaurant info
+    const existing = await sql`
+      SELECT workspace_id, restaurant_id FROM menu_items WHERE id = ${id}
+    `;
+
+    if (existing.length === 0) {
+      return errorResponse(404, 'Menu item not found', auth.correlationId);
+    }
+
+    const itemWorkspaceId = existing[0].workspace_id;
+    const itemRestaurantId = existing[0].restaurant_id;
+
+    // Check access (workspace member or shared access)
+    const membership = await sql`
+      SELECT role FROM workspace_members
+      WHERE user_id = ${auth.user.id} AND workspace_id = ${itemWorkspaceId}
+    `;
+
+    if (membership.length === 0) {
+      const sharedAccess = await sql`
+        SELECT restaurant_id FROM shared_restaurants
+        WHERE restaurant_id = ${itemRestaurantId} AND user_id = ${auth.user.id}
+      `;
+      if (sharedAccess.length === 0) {
+        return errorResponse(403, 'No access to this menu item', auth.correlationId);
+      }
+    }
+
+    const historyId = generateId();
+    const triedDate = now();
+
+    // Insert history record
+    await sql`
+      INSERT INTO menu_item_tried_history (id, user_id, menu_item_id, tried_date, notes, created_at)
+      VALUES (${historyId}, ${auth.user.id}, ${id}, ${triedDate}, ${body.notes?.trim() || null}, ${triedDate})
+    `;
+
+    // Update last_tried_date in user_menu_item_state
+    await sql`
+      INSERT INTO user_menu_item_state (user_id, menu_item_id, tried, last_tried_date, updated_at)
+      VALUES (${auth.user.id}, ${id}, true, ${triedDate}, ${triedDate})
+      ON CONFLICT (user_id, menu_item_id) DO UPDATE SET
+        last_tried_date = ${triedDate},
+        updated_at = ${triedDate}
+    `;
+
+    return jsonResponse({
+      id: historyId,
+      triedDate,
+      notes: body.notes?.trim() || null,
+    }, auth.correlationId, 201);
   }),
 });

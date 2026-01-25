@@ -51,10 +51,23 @@ export function MenuItemDetailPage() {
 
   const handleToggleTried = () => {
     if (!item) return;
+    // If marking as tried (currently false), backend will create history entry
     handleUpdate({ 
       tried: !item.tried, 
       lastTriedDate: !item.tried ? new Date().toISOString() : undefined 
     });
+  };
+
+  const handleRetried = async () => {
+    if (!item || !id) return;
+    setIsSaving(true);
+    const response = await api.tryMenuItem(item.id);
+    if (response.data) {
+      // Refresh item to get updated history
+      const updated = await api.getMenuItem(id);
+      if (updated.data) setItem(updated.data);
+    }
+    setIsSaving(false);
   };
 
   const handleRatingChange = (rating: number) => {
@@ -118,10 +131,27 @@ export function MenuItemDetailPage() {
         <p className="mt-md" style={{ color: 'var(--color-text-secondary)' }}>
           {item.tried ? 'You\'ve tried this!' : 'Not tried yet'}
         </p>
-        {item.lastTriedDate && (
-          <p style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-sm)' }}>
-            Last tried: {new Date(item.lastTriedDate).toLocaleDateString()}
-          </p>
+        
+        {item.tried && (
+          <div className="mt-md">
+            <button className="btn btn-secondary btn-sm" onClick={handleRetried}>
+              Tried Again?
+            </button>
+          </div>
+        )}
+
+        {item.history && item.history.length > 0 && (
+          <div className="mt-lg text-left border-t border-border pt-md">
+            <div className="text-sm font-semibold mb-sm text-text-secondary">History</div>
+            <div className="space-y-xs">
+              {item.history.map((h, i) => (
+                <div key={h.id} className="flex justify-between text-sm">
+                   <span>{new Date(h.triedDate).toLocaleDateString()} {new Date(h.triedDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                   {h.notes && <span className="text-text-tertiary italic">- {h.notes}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 

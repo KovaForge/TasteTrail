@@ -20,9 +20,9 @@ async function runMigration() {
       }
 
       // Read migration file
-      const migrationPath = path.join(__dirname, 'db', 'migrations', '004_multi_provider_settings.sql');
+      const migrationPath = path.join(__dirname, 'db', 'migrations', '006_tried_history.sql');
       if (!fs.existsSync(migrationPath)) {
-          throw new Error('Migration file 004 not found');
+          throw new Error('Migration file 006 not found');
       }
       const migrationSql = fs.readFileSync(migrationPath, 'utf8');
 

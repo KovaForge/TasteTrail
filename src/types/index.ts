@@ -69,6 +69,7 @@ export interface MenuItem {
   rating?: number;
   notes?: string;
   tags: string[];
+  history?: { id: string; triedDate: string; notes?: string }[];
   createdAt: string;
 }
 
