@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "TasteTrail",
+    "slug": "tastetrail-native",
+    "scheme": "tastetrail",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"]
+  }
+}

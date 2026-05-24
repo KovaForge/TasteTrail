@@ -1,162 +1,162 @@
 # TasteTrail
 
-A mobile-first web app for tracking restaurant menu items, recording notes, analysing food preferences, and sharing collections with family members.
+TasteTrail is now structured as a Vercel + Neon monorepo with three first-class surfaces:
 
-## Features
+* `apps/web`: Next.js web app and route handlers
+* `apps/cli`: OpenClaw-friendly CLI for shell-driven operation
+* `apps/native`: Expo native scaffold that consumes the same backend contracts
 
-- 📱 **Mobile-first PWA** - Install on your phone for native-like experience
-- 🍽️ **Restaurant & Menu Tracking** - Keep track of dishes you've tried
-- ⭐ **Ratings & Notes** - Rate items and add personal notes
-- 📊 **Cuisine Statistics** - Visualize your food preferences
-- 👨‍👩‍👧‍👦 **Family Sharing** - One shared workspace for the whole family
-- 📥 **Menu Import** - Import menus from text, URLs, or photos
-- 🔒 **Microsoft Authentication** - Secure sign-in with your Microsoft account
+The old Azure Static Web Apps plus Azure Functions architecture has been replaced by shared workspace packages and a web runtime that is portable across web, CLI, and native clients.
 
-## Tech Stack
+## Architecture
 
-- **Frontend**: React, TypeScript, Vite, PWA
-- **Backend**: Azure Functions (Node.js)
-- **Database**: Neon PostgreSQL
-- **Hosting**: Azure Static Web Apps
-- **Auth**: Microsoft Entra External ID
+### Workspaces
 
-## Prerequisites
+* `apps/web`
+  * Next.js App Router UI
+  * API route handlers for TasteTrail operations
+  * Passkey-first auth UI plus Microsoft migration bridge
+* `apps/cli`
+  * Node CLI with commands for auth, workspaces, restaurants, imports, stats, debug logs, and CLI token creation
+  * Intended execution surface for OpenClaw shell automation
+* `apps/native`
+  * Expo scaffold for the native client surface
+* `packages/shared`
+  * Cross-surface TypeScript domain types
+* `packages/server`
+  * Shared backend services for auth, workspaces, restaurants, menu items, imports, AI settings, and debug logging
+* `db/migrations`
+  * SQL migrations for Neon PostgreSQL
 
-- Node.js 18+
-- npm or yarn
-- [Azure Static Web Apps CLI](https://github.com/Azure/static-web-apps-cli) (for local dev)
-- [Azure Functions Core Tools](https://github.com/Azure/azure-functions-core-tools)
-- Neon PostgreSQL database
+### Authentication
 
-## Setup
+TasteTrail now targets passkeys as the steady-state auth model.
 
-### 1. Clone and Install
+Migration support remains for Microsoft-era accounts:
+
+* Microsoft sign-in is optional and intended only as a migration bridge
+* legacy identity links are stored in Neon
+* users can claim legacy data and attach a passkey to the new account
+
+### OpenClaw operation
+
+TasteTrail is designed to be operable through the CLI so OpenClaw can drive it via shell execution.
+
+Key pattern:
 
 ```bash
-git clone https://github.com/your-username/TasteTrail.git
-cd TasteTrail
+npm run build
+node /Users/mike/Projects/KovaForge/TasteTrail/apps/cli/dist/index.js auth whoami
+```
 
-# Install frontend dependencies
+More examples are in [docs/openclaw-cli.md](/Users/mike/Projects/KovaForge/TasteTrail/docs/openclaw-cli.md:1).
+
+## Root commands
+
+```bash
 npm install
-
-# Install API dependencies
-cd api && npm install && cd ..
+npm run build
+npm run dev:web
+npm run dev:cli
 ```
 
-### 2. Database Setup
+`npm run build` builds:
 
-1. Create a [Neon PostgreSQL](https://neon.tech) database
-2. Run the migration:
+* `@tastetrail/cli`
+* `@tastetrail/web`
+
+The native scaffold is intentionally excluded from the root build so the main web plus CLI loop stays fast.
+
+## Environment
+
+Create a local `.env` file at the repo root with values such as:
 
 ```bash
-# Connect to your Neon database and run:
-psql -h your-neon-host -U your-username -d your-database -f db/migrations/001_initial_schema.sql
+DATABASE_URL=postgres://...
+BETTER_AUTH_SECRET=replace-with-a-random-32-byte-plus-secret
+BETTER_AUTH_URL=http://localhost:3000
+APP_BASE_URL=http://localhost:3000
+PASSKEY_RP_ID=localhost
+TASTETRAIL_ENCRYPTION_KEY=replace-with-a-random-32-byte-base64-key
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_TENANT_ID=common
+NEXT_PUBLIC_MICROSOFT_AUTH_ENABLED=false
 ```
 
-### 3. Environment Variables
+Notes:
 
-Create `api/local.settings.json`:
+* `BETTER_AUTH_SECRET` must be a strong secret. The build will warn if it is weak.
+* Leave the Microsoft values empty unless you are actively testing the legacy migration bridge.
+* `TASTETRAIL_ENCRYPTION_KEY` is used for AES-256-GCM encryption of stored AI provider keys.
 
-```json
-{
-  "IsEncrypted": false,
-  "Values": {
-    "AzureWebJobsStorage": "",
-    "FUNCTIONS_WORKER_RUNTIME": "node",
-    "DATABASE_URL": "postgres://your-neon-connection-string",
-    "ENCRYPTION_MASTER_KEY": "your-32-byte-base64-key"
-  }
-}
-```
+## Database migrations
 
-### 4. Azure App Registration
+Run the Neon migrations in order. The current rearchitecture adds:
 
-1. Go to [Azure Portal](https://portal.azure.com) → Microsoft Entra ID
-2. App registrations → New registration
-3. Configure:
-   - Name: TasteTrail
-   - Supported account types: **Accounts in any organizational directory and personal Microsoft accounts**
-   - Redirect URI: `https://your-app.azurestaticapps.net/.auth/login/aad/callback`
-4. Copy the Application (client) ID
-5. Create a client secret under Certificates & secrets
+* [db/migrations/007_vercel_neon_rearchitecture.sql](/Users/mike/Projects/KovaForge/TasteTrail/db/migrations/007_vercel_neon_rearchitecture.sql:1)
 
-### 5. Local Development
+That migration introduces:
+
+* CLI tokens
+* debug log entries
+* legacy identity links for Microsoft-to-passkey migration
+
+## Web app
+
+Run the web app locally:
 
 ```bash
-# Terminal 1: Start API
-cd api && npm start
+npm run dev:web
+```
 
-# Terminal 2: Start frontend
+Important routes:
+
+* `/sign-in`
+* `/restaurants`
+* `/import`
+* `/settings`
+* `/migrate-account`
+
+## CLI
+
+Build first:
+
+```bash
+npm run build
+```
+
+Common commands:
+
+```bash
+node apps/cli/dist/index.js auth login --token <token> --base-url http://localhost:3000
+node apps/cli/dist/index.js auth whoami
+node apps/cli/dist/index.js workspaces list
+node apps/cli/dist/index.js restaurants list --workspace-id <workspace-id>
+node apps/cli/dist/index.js imports parse --workspace-id <workspace-id> --source-type text --source-value "..."
+node apps/cli/dist/index.js debug logs --workspace-id <workspace-id>
+```
+
+The CLI stores config at `~/.tastetrail/config.json`.
+
+## Native scaffold
+
+The native scaffold lives in `apps/native` and is intentionally isolated from the root workspace install.
+
+Run it separately:
+
+```bash
+cd apps/native
+npm install
 npm run dev
 ```
 
-Open http://localhost:5173
+## Verification
 
-### 6. Deploy to Azure
+The repo-local verification command is:
 
 ```bash
-# Install SWA CLI
-npm install -g @azure/static-web-apps-cli
-
-# Deploy
-swa deploy --env production
+npm run build
 ```
 
-Configure environment variables in Azure Portal:
-- `AAD_CLIENT_ID`: Your app registration client ID
-- `AAD_CLIENT_SECRET`: Your app registration client secret
-- `DATABASE_URL`: Your Neon PostgreSQL connection string
-- `ENCRYPTION_MASTER_KEY`: **Required**. A 32-byte base64 encoded key for encrypting API settings. Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
-
-## Project Structure
-
-```
-TasteTrail/
-├── src/                    # React frontend
-│   ├── components/         # Reusable UI components
-│   ├── context/            # React context providers
-│   ├── pages/              # Page components
-│   ├── services/           # API client
-│   └── types/              # TypeScript types
-├── api/                    # Azure Functions backend
-│   └── src/
-│       ├── functions/      # API endpoints
-│       ├── middleware/     # Auth middleware
-│       └── db/             # Database client
-├── db/
-│   └── migrations/         # SQL migrations
-└── public/                 # Static assets
-```
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/workspaces` | Get user's workspaces |
-| POST | `/api/workspaces` | Create workspace |
-| GET | `/api/restaurants` | List restaurants |
-| POST | `/api/restaurants` | Create restaurant |
-| GET | `/api/restaurants/{id}` | Get restaurant |
-| PUT | `/api/restaurants/{id}` | Update restaurant |
-| DELETE | `/api/restaurants/{id}` | Delete restaurant |
-| GET | `/api/restaurants/{id}/menu-items` | List menu items |
-| POST | `/api/restaurants/{id}/menu-items` | Create menu item |
-| GET | `/api/menu-items/{id}` | Get menu item |
-| PUT | `/api/menu-items/{id}` | Update menu item |
-| DELETE | `/api/menu-items/{id}` | Delete menu item |
-| GET | `/api/search` | Search restaurants/items |
-| GET | `/api/stats/cuisines` | Cuisine statistics |
-| POST | `/api/imports` | Create import draft |
-| POST | `/api/imports/{id}/commit` | Commit import |
-
-## Collaboration
-
-- **Owner**: Full access, can manage members
-- **Editor**: Can add/edit restaurants and menu items
-- **Viewer**: Read-only access
-
-Invite family members by email from the Settings page.
-
-## License
-
-See [LICENSE](LICENSE) file.
+This has been validated for the current rearchitecture.

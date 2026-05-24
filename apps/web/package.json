@@ -1,0 +1,31 @@
+{
+  "name": "@tastetrail/web",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@better-auth/passkey": "^1.6.0",
+    "@tastetrail/server": "2.0.0",
+    "@tastetrail/shared": "2.0.0",
+    "better-auth": "^1.6.0",
+    "next": "^15.2.4",
+    "pg": "^8.13.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "tesseract.js": "^7.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "typescript": "^5.7.2"
+  }
+}
