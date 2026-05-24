@@ -2,17 +2,16 @@
   "$schema": "https://aka.ms/swa-cli-config-schema",
   "configurations": {
     "tastetrail": {
-      "appLocation": "/Users/mike/Projects/KovaForge/TasteTrail",
-      "apiLocation": "/Users/mike/Projects/KovaForge/TasteTrail/api",
-      "outputLocation": "/Users/mike/Projects/KovaForge/TasteTrail/dist",
+      "appLocation": ".",
+      "outputLocation": "dist",
       "appBuildCommand": "npm run build",
-      "apiBuildCommand": "npm run build",
-      "run": "npm run dev",
       "env": {
         "production": {
           "deploymentToken": ""
         }
-      }
+      },
+      "appName": "TasteTrailApp",
+      "resourceGroup": "TasteTrailApp_group"
     }
   }
 }
