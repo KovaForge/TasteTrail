@@ -2,9 +2,9 @@
   "$schema": "https://aka.ms/swa-cli-config-schema",
   "configurations": {
     "tastetrail": {
-      "appLocation": "/",
-      "apiLocation": "api",
-      "outputLocation": "dist",
+      "appLocation": "/Users/mike/Projects/KovaForge/TasteTrail",
+      "apiLocation": "/Users/mike/Projects/KovaForge/TasteTrail/api",
+      "outputLocation": "/Users/mike/Projects/KovaForge/TasteTrail/dist",
       "appBuildCommand": "npm run build",
       "apiBuildCommand": "npm run build",
       "run": "npm run dev",
