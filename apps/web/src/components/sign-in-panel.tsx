@@ -73,6 +73,10 @@ export function SignInPanel() {
         <p className="eyebrow">TasteTrail 2.0</p>
         <h1>Passkey-first sign-in with Microsoft migration support</h1>
         <p className="muted">
+          A mobile-first web app for tracking restaurant menu items, recording notes, analysing food preferences, and
+          sharing collections with family members.
+        </p>
+        <p className="muted">
           Use email OTP to bootstrap a new account, sign in with a passkey, or temporarily use Microsoft to migrate existing data before switching to passkeys.
         </p>
       </div>

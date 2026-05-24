@@ -60,3 +60,4 @@ migrate.js
 migrate_ai_settings.js
 fix_schema.js
 check_user.js
+.vercel
