@@ -47,9 +47,7 @@ export function SignInPanel() {
 
   async function signInWithPasskey() {
     setBusy("passkey");
-    const result = await authClient.signIn.passkey({
-      autoFill: true,
-    });
+    const result = await authClient.signIn.passkey();
     setBusy(null);
     if (result.error) {
       setStatus({ tone: "bad", message: result.error.message ?? "Failed to sign in with passkey" });
@@ -91,11 +89,11 @@ export function SignInPanel() {
           <input value={name} onChange={(event) => setName(event.target.value)} placeholder="TasteTrail User" />
         </label>
         <div className="button-row">
+          <button onClick={signInWithPasskey} disabled={busy !== null}>
+            {busy === "passkey" ? "Opening..." : "Use Passkey"}
+          </button>
           <button onClick={sendOtp} disabled={!email || busy !== null}>
             {busy === "otp" ? "Sending..." : "Send Email OTP"}
-          </button>
-          <button onClick={signInWithPasskey} disabled={busy !== null}>
-            {busy === "passkey" ? "Checking..." : "Use Passkey"}
           </button>
           {microsoftEnabled ? (
             <button className="secondary" onClick={signInWithMicrosoft} disabled={busy !== null}>
@@ -103,6 +101,10 @@ export function SignInPanel() {
             </button>
           ) : null}
         </div>
+        <p className="muted">
+          Passkey sign-in should trigger your browser or password manager directly. A QR-style handoff only appears if
+          your browser chooses a cross-device passkey flow.
+        </p>
       </div>
 
       <div className="stack-md">

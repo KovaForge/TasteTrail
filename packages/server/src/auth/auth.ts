@@ -15,8 +15,15 @@ const socialProviders = process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT
     }
   : undefined;
 
-function getBaseUrl() {
-  return process.env.BETTER_AUTH_URL || process.env.APP_BASE_URL || "http://localhost:3000";
+const allowedHosts = [
+  "tastetrail.delpach.com",
+  "*.vercel.app",
+  "localhost:3000",
+  "localhost:5173",
+];
+
+function getBaseUrlFallback() {
+  return process.env.BETTER_AUTH_URL || process.env.APP_BASE_URL || "https://tastetrail.delpach.com";
 }
 
 const pool = new Pool({
@@ -25,7 +32,11 @@ const pool = new Pool({
 
 export const auth = betterAuth({
   database: pool,
-  baseURL: getBaseUrl(),
+  baseURL: {
+    allowedHosts,
+    protocol: "auto",
+    fallback: getBaseUrlFallback(),
+  },
   basePath: "/api/auth",
   secret: process.env.BETTER_AUTH_SECRET || "dev-only-secret-change-me",
   emailAndPassword: {
@@ -34,9 +45,8 @@ export const auth = betterAuth({
   socialProviders,
   plugins: [
     passkey({
-      rpID: process.env.PASSKEY_RP_ID || "localhost",
       rpName: "TasteTrail",
-      origin: getBaseUrl(),
+      // Better Auth can derive the effective origin and RP ID from the request host.
     }),
     emailOTP({
       async sendVerificationOTP({ email, otp, type }) {
