@@ -339,21 +339,9 @@ app.http('commitImport', {
       }
     }, auth.correlationId);
 
-    // Update import status
     await sql`
       UPDATE menu_imports SET status = 'committed' WHERE id = ${importId}
     `;
-
-    return jsonResponse({
-      restaurant: {
-        id: restaurantId,
-        workspaceId: auth.workspaceId,
-        name: body.restaurantName.trim(),
-        cuisine: body.cuisine.trim(),
-        createdAt,
-      },
-      items,
-    }, auth.correlationId);
   }, { requireWorkspace: true }),
 });
 

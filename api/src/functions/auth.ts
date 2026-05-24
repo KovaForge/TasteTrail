@@ -8,6 +8,7 @@ import { validateMicrosoftIdToken, getOrCreateUser } from '../infrastructure/mic
 app.http('authMicrosoftDeviceCodeConfig', {
   methods: ['GET'],
   route: 'auth/microsoft/device-code/config',
+  authLevel: 'anonymous',
   handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
     const clientId = process.env.MICROSOFT_AUTH_CLIENT_ID;
     if (!clientId) {
@@ -35,6 +36,7 @@ app.http('authMicrosoftDeviceCodeConfig', {
 app.http('authMicrosoftCliToken', {
   methods: ['POST'],
   route: 'auth/microsoft/cli-token',
+  authLevel: 'anonymous',
   handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
     const correlationId = getCorrelationId(request);
 
@@ -76,6 +78,7 @@ app.http('authMicrosoftCliToken', {
 app.http('authStatus', {
   methods: ['GET'],
   route: 'auth/status',
+  authLevel: 'anonymous',
   handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
     const correlationId = getCorrelationId(request);
 
@@ -124,6 +127,7 @@ app.http('authStatus', {
 app.http('authMicrosoftDeviceCodeToken', {
   methods: ['POST'],
   route: 'auth/microsoft/device-code/token',
+  authLevel: 'anonymous',
   handler: async (request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> => {
     const correlationId = getCorrelationId(request);
 
