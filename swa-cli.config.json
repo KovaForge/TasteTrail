@@ -1,0 +1,18 @@
+{
+  "$schema": "https://aka.ms/swa-cli-config-schema",
+  "configurations": {
+    "tastetrail": {
+      "appLocation": "/",
+      "apiLocation": "api",
+      "outputLocation": "dist",
+      "appBuildCommand": "npm run build",
+      "apiBuildCommand": "npm run build",
+      "run": "npm run dev",
+      "env": {
+        "production": {
+          "deploymentToken": ""
+        }
+      }
+    }
+  }
+}
