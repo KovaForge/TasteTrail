@@ -5,22 +5,6 @@
   },
   "routes": [
     {
-      "route": "/api/auth/microsoft/device-code/config",
-      "allowedRoles": []
-    },
-    {
-      "route": "/api/auth/microsoft/cli-token",
-      "allowedRoles": []
-    },
-    {
-      "route": "/api/auth/microsoft/device-code/token",
-      "allowedRoles": []
-    },
-    {
-      "route": "/api/auth/status",
-      "allowedRoles": []
-    },
-    {
       "route": "/api/*",
       "allowedRoles": ["authenticated"]
     }
