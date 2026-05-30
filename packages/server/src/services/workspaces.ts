@@ -95,3 +95,14 @@ export async function removeWorkspaceMember(currentUserId: string, workspaceId: 
   }
   await query(`delete from workspace_members where workspace_id = $1 and user_id = $2`, [workspaceId, targetUserId]);
 }
+
+export async function deleteWorkspace(currentUserId: string, workspaceId: string) {
+  const membership = await query<{ role: WorkspaceRole }>(
+    `select role from workspace_members where workspace_id = $1 and user_id = $2`,
+    [workspaceId, currentUserId],
+  );
+  if (membership.rows[0]?.role !== "Owner") {
+    throw new ApiRouteError(403, "Only owners can delete a workspace");
+  }
+  await query(`delete from workspaces where id = $1`, [workspaceId]);
+}

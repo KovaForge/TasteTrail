@@ -112,6 +112,12 @@ async function main() {
     return;
   }
 
+  if (group === "workspaces" && command === "delete") {
+    const workspaceId = getRequired(flags, "workspace-id");
+    printJson(await request(config, `/api/workspaces/${workspaceId}`, { method: "DELETE" }));
+    return;
+  }
+
   if (group === "workspaces" && command === "members") {
     const workspaceId = getRequired(flags, "workspace-id");
     printJson(await request(config, `/api/workspaces/${workspaceId}/members`));
@@ -250,6 +256,7 @@ async function main() {
       "tastetrail auth whoami",
       "tastetrail workspaces list",
       "tastetrail workspaces create --name <name>",
+      "tastetrail workspaces delete --workspace-id <id>",
       "tastetrail workspaces members --workspace-id <id>",
       "tastetrail restaurants list [--workspace-id <id>]",
       "tastetrail restaurants create --workspace-id <id> --name <name> --cuisine <cuisine>",
