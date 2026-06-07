@@ -94,6 +94,10 @@
 * Before any git commit and push, verify the build locally to prevent CI/CD failures.
 * Run `npm run build` from the repo root and fix all errors before committing changes.
 * This applies to both web and CLI changes. Native scaffolding can remain out of the root build if intentionally isolated.
+* Never commit secrets, deployment tokens, API keys, passwords, connection strings, or populated `.env` files to the repo.
+* Treat any value that grants access to Vercel, Neon, Azure, OpenAI, Gemini, Microsoft, or CLI sessions as a secret even if it appears to be local-only config.
+* Before every commit and push, review staged diffs for secrets and remove or redact them before publishing history.
+* If a secret is exposed in git history, rotate it immediately and rewrite the affected history before continuing normal work.
 
 ## Out of scope
 * Reintroducing Azure Static Web Apps or Azure Functions as the primary runtime.
@@ -119,3 +123,26 @@ When a bug or feature is identified or provided by user, follow this process:
    - The exact `gh` command ran
    - The created issue URL
    - Confirmation of classification and labels
+
+---
+
+# AGENTS.md
+
+## Git identity and wrappers (mandatory)
+
+All git activity in this repo MUST go through a per-person wrapper. No bare `git push`.
+
+| Agent | Wrapper |
+|---|---|
+| Aoife | `git-aoife` |
+| Mikhail | `git-mikhail` |
+| Declan | `git-declan` |
+| Vladislava | `git-vladislava` |
+
+Whoever pushes uses their own wrapper. Example: Declan pushes with `git-declan push`, Vladislava with `git-vladislava push`. Wrappers set committer identity and route the push to the correct per-person remote on the matching `github-<person>` SSH host.
+
+Run `git-<person> whoami` to confirm identity and remote before pushing.
+
+## Source of truth
+
+Inherited from `/Users/mike/Projects/KovaForge/AGENTS.md`. When this file and the parent conflict, the parent wins until this file is updated to match.
