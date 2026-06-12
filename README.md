@@ -89,6 +89,8 @@ Notes:
 * `BETTER_AUTH_SECRET` must be a strong secret. The build will warn if it is weak.
 * Leave the Microsoft values empty unless you are actively testing the legacy migration bridge.
 * `TASTETRAIL_ENCRYPTION_KEY` is used for AES-256-GCM encryption of stored AI provider keys.
+* Never commit real secrets, deployment tokens, populated `.env` files, or copied production credentials into this repo. Use placeholders in tracked files and keep live values only in local env files or provider-managed secret stores.
+* If a secret is ever pushed, treat it as compromised: rotate it and rewrite the affected git history.
 
 ## Database migrations
 
