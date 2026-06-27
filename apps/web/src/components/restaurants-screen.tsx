@@ -155,6 +155,29 @@ export function RestaurantsScreen({ initialWorkspaces, initialRestaurants }: Pro
     setStatus("Item deleted");
   }
 
+  async function markTried(restaurantId: string, itemId: string) {
+    const response = await fetch(`/api/menu-items/${itemId}/try`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      setStatus(data.message || "Failed to mark as tried");
+      return;
+    }
+    setMenuStates((prev) => ({
+      ...prev,
+      [restaurantId]: {
+        ...prev[restaurantId],
+        items: prev[restaurantId].items.map((i) =>
+          i.id === itemId ? { ...i, tried: true, lastTriedDate: new Date().toISOString() } : i,
+        ),
+      },
+    }));
+    setStatus("Marked as tried");
+  }
+
   // ── render ───────────────────────────────────────────────────────────
 
   return (
@@ -235,6 +258,7 @@ export function RestaurantsScreen({ initialWorkspaces, initialRestaurants }: Pro
                             onCancelEdit={() => setMenuStates((prev) => ({ ...prev, [restaurant.id]: { ...prev[restaurant.id], editingItemId: null } }))}
                             onSave={(formData) => updateMenuItem(restaurant.id, item.id, formData)}
                             onDelete={() => deleteMenuItem(restaurant.id, item.id)}
+                            onToggleTried={() => markTried(restaurant.id, item.id)}
                           />
                         ))}
 
@@ -282,9 +306,10 @@ type MenuItemRowProps = {
   onCancelEdit: () => void;
   onSave: (data: { name: string; category: string; price: string; description: string }) => void;
   onDelete: () => void;
+  onToggleTried: () => void;
 };
 
-function MenuItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSave, onDelete }: MenuItemRowProps) {
+function MenuItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSave, onDelete, onToggleTried }: MenuItemRowProps) {
   const [form, setForm] = useState({
     name: item.name,
     category: item.category ?? "",
@@ -331,9 +356,16 @@ function MenuItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSave, onDel
           <span className="pill subtle" style={{ fontSize: "0.75rem", marginTop: "0.25rem", display: "inline-block" }}>✓ Tried</span>
         ) : null}
       </div>
-      <button className="secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", flexShrink: 0 }} onClick={onStartEdit}>
-        Edit
-      </button>
+      <div className="pill-group" style={{ flexShrink: 0 }}>
+        {!item.tried ? (
+          <button className="secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }} onClick={onToggleTried}>
+            Mark tried
+          </button>
+        ) : null}
+        <button className="secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }} onClick={onStartEdit}>
+          Edit
+        </button>
+      </div>
     </div>
   );
 }
