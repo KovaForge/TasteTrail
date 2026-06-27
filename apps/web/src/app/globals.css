@@ -349,6 +349,22 @@ h2 {
   overflow-x: auto;
 }
 
+.inline-form-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.inline-form-row input {
+  flex: 1;
+  min-width: 100px;
+}
+
+.menu-section {
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--border);
+}
+
 @media (max-width: 720px) {
   .page-shell {
     padding: 1rem 0.8rem 6rem;
