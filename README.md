@@ -1,3 +1,5 @@
+> **Moved:** now at McoreD/delpach-home `apps/tastetrail`, live at https://delpach.com/tastetrail. This repository is archived. See MOVED.md.
+
 # TasteTrail
 
 TasteTrail is now structured as a Vercel + Neon monorepo with three first-class surfaces:
